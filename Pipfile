@@ -1,0 +1,41 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+open3d = "*"
+numpy = "*"
+ninja = "*"
+tqdm = "*"
+colorlog = "*"
+colorama = "*"
+h5py = "*"
+matplotlib = "*"
+opencv-python = "*"
+imageio = "*"
+pypng = "*"
+screeninfo = "*"
+nltk = "*"
+trimesh = "*"
+pyglet = "*"
+pyyaml = "*"
+"ruamel.yaml" = "*"
+transforms3d = "*"
+pandas = "*"
+rtree = "*"
+psutil = "*"
+scipy = "*"
+torch = "*"
+torchvision = "*"
+torchaudio = "*"
+tensorboard = "*"
+tensorboardX = "*"
+notebook = "*"
+black = "*"
+ray = {extras = ["default"], version = "*"}
+
+[dev-packages]
+
+[requires]
+python_version = "3.10"
