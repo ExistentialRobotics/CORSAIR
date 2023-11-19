@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="Black">
+    <option name="cmdArguments" value="--config /home/daizhirui/.config/black" />
+    <option name="enabledOnReformat" value="true" />
+    <option name="enabledOnSave" value="true" />
+    <option name="executionMode" value="BINARY" />
+    <option name="pathToExecutable" value="/usr/bin/black" />
     <option name="sdkName" value="Python 3.11 (erl-neural-sddf-JbhWmJL_)" />
   </component>
   <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.10 (erl-CORSAIR-4oFZ7Yj6)" project-jdk-type="Python SDK" />

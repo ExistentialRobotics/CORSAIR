@@ -3,9 +3,6 @@ logs/
 .vscode
 Pipfile.lock
 temp*
-# data files
-data
-ckpts
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
