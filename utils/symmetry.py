@@ -260,8 +260,7 @@ def sym_pose(baseF, xyz0, posF, xyz1, pos_sym, k_nn=5, max_corr=0.20):
             base_masks = symmetric_cut4(baseF, xyz0, 2, max_sample=100)
             pos_masks = symmetric_cut4(posF, xyz1, 2, max_sample=100)
     except Exception as e:
-        print(e)
-        tqdm.write("symmetry failed use ransac")
+        tqdm.write(f"symmetry failed use ransac: {e}")
         return T_est_best, chamf_dist_best, T_est_ransac, chamf_dist_ransac, False
 
     for _ in range(len(base_masks)):

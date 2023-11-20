@@ -57,8 +57,9 @@ def to_T(translation, quaternion, scale):
     quaternion = np.array(quaternion)
     scale = np.array(scale)
 
-    euler = transforms3d.euler.quat2euler(quaternion)
-    R = transforms3d.euler.euler2mat(euler[0], euler[1], euler[2])
+    # euler = transforms3d.euler.quat2euler(quaternion)
+    # R = transforms3d.euler.euler2mat(euler[0], euler[1], euler[2])
+    R = transforms3d.quaternions.quat2mat(quaternion)
     M, S = np.eye(4), np.eye(4)
     M[:3, :3] = R
     M[:3, 3] = translation

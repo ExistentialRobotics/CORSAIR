@@ -29,6 +29,7 @@ class Config:
     scan2cad_pc_root: str
     scan2cad_annotation_root: str
     category: str
+    checkpoint: str
     catid: str = None
     voxel_size: float = 0.03
     k_nn: int = 5
@@ -77,6 +78,12 @@ class App:
             help="Category to evaluate",
         )
         parser.add_argument(
+            "--checkpoint",
+            type=str,
+            default=os.path.join(script_dir, "ckpts", f"scannet_pose_table"),
+            help="Path to the checkpoint",
+        )
+        parser.add_argument(
             "--device",
             type=str,
             default="cuda",
@@ -95,45 +102,45 @@ class App:
         self.logger = Logger("./logs", "evaluation.txt")
         self.logger.log(f"category: {self.config.category}")
 
-        scan2cad_info = Scan2cadInfo(
+        self.scan2cad_info = Scan2cadInfo(
             cad_root=self.config.shapenet_pc15k_root,
             scan_root=self.config.scan2cad_pc_root,
             catid=self.config.catid,
             annotation_dir=self.config.scan2cad_annotation_root,
         )
-        cad_lib = CustomizeCADLib(
+        self.cad_lib = CustomizeCADLib(
             root=self.config.shapenet_pc15k_root,
             catid=self.config.catid,
-            ids=scan2cad_info.UsedObjId,
+            ids=self.scan2cad_info.UsedObjId,
             table_path=os.path.join(script_dir, "configs", f"{self.config.catid}_scan2cad.npy"),
             voxel_size=self.config.voxel_size,
             preload=False,
         )
-        dataset = ScannetDataset(
+        self.dataset = ScannetDataset(
             scan_root=self.config.scan2cad_pc_root,
             cad_root=self.config.shapenet_pc15k_root,
-            CADLib=cad_lib,
-            Scan2CadInfo=scan2cad_info,
+            CADLib=self.cad_lib,
+            Scan2CadInfo=self.scan2cad_info,
             split="test",
             catid=self.config.catid,
-            pos_ratio=0.0,
+            pos_ratio=0.1,
             neg_ratio=0.5,
             voxel_size=self.config.voxel_size,
             preload=False,
         )
-        cad_lib_loader = DataLoader(
-            cad_lib,
+        self.cad_lib_loader = DataLoader(
+            self.cad_lib,
             batch_size=32,
             shuffle=False,
             num_workers=4,
-            collate_fn=cad_lib.collate_pair_fn,
+            collate_fn=self.cad_lib.collate_pair_fn,
         )
-        scan2cad_loader = DataLoader(
-            dataset,
+        self.scan2cad_loader = DataLoader(
+            self.dataset,
             batch_size=32,
             shuffle=False,
             num_workers=2,
-            collate_fn=dataset.collate_pair_fn,
+            collate_fn=self.dataset.collate_pair_fn,
         )
         with open(os.path.join(script_dir, "configs", f"{self.config.catid}_scan2cad_rot_sym_label.txt"), "r") as f:
             lines = f.readlines()
@@ -155,10 +162,7 @@ class App:
         embedding = fc.conv1_max_embedding(1024, 512, 256).to(self.config.device)
 
         # load weights
-        checkpoint = torch.load(
-            os.path.join(script_dir, "ckpts", f"scannet_ret_{self.config.category}"),
-            map_location=self.config.device,
-        )
+        checkpoint = torch.load(self.config.checkpoint, map_location=self.config.device)
         model.load_state_dict(checkpoint["state_dict"])
         embedding.load_state_dict(checkpoint["embedding_state_dict"])
         self.logger.log(f"Checkpoint epoch: {checkpoint['epoch']}")
@@ -177,7 +181,7 @@ class App:
         self.lib_origins = []
         self.logger.log("Updating global feature in the CAD library")
         with torch.no_grad():
-            for data in tqdm(cad_lib_loader, ncols=80):
+            for data in tqdm(self.cad_lib_loader, ncols=80):
                 base_input = ME.SparseTensor(
                     data["base_feat"].to(self.config.device),
                     data["base_coords"].to(self.config.device),
@@ -208,7 +212,7 @@ class App:
         self.pos_syms = []
         self.logger.log("Updating global feature in the Scan2CAD dataset")
         with torch.no_grad():
-            for data in tqdm(scan2cad_loader, ncols=80):
+            for data in tqdm(self.scan2cad_loader, ncols=80):
                 base_input = ME.SparseTensor(
                     data["base_feat"].to(self.config.device),
                     data["base_coords"].to(self.config.device),
@@ -239,7 +243,7 @@ class App:
         self.lib_descriptors = self.lib_feats.detach().cpu().numpy()
         self.best_match_idx = self.pos_idx.detach().cpu().numpy()
         self.stat = scan2cad_retrieval_eval(
-            self.descriptors, self.lib_descriptors, self.best_match_idx, dataset.table, max(dataset.pos_n, 1)
+            self.descriptors, self.lib_descriptors, self.best_match_idx, self.dataset.table, max(self.dataset.pos_n, 1)
         )
         self.logger.log(f"top1_error: {self.stat['top1_error']}")
         self.logger.log(f"precision: {self.stat['precision']}")
@@ -293,21 +297,47 @@ class App:
                 self.chamfer_dist_sym.append(chamfer_dist_best)
             self._save_data()
 
+        def _compute_rte(t_losses):
+            rte_002 = np.sum(np.array(t_losses) <= 0.02) / len(t_losses)
+            rte_005 = np.sum(np.array(t_losses) <= 0.05) / len(t_losses)
+            rte_010 = np.sum(np.array(t_losses) <= 0.10) / len(t_losses)
+            return rte_002, rte_005, rte_010
+
+        def _compute_rre(r_losses):
+            r_losses = np.rad2deg(np.array(r_losses))
+            rre_005 = np.sum(r_losses <= 5) / len(r_losses)
+            rre_015 = np.sum(r_losses <= 15) / len(r_losses)
+            rre_045 = np.sum(r_losses <= 45) / len(r_losses)
+            return rre_005, rre_015, rre_045
+
         t_loss_ransac = np.mean(self.t_losses_ransac)
+        rte_002_ransac, rte_005_ransac, rte_010_ransac = _compute_rte(self.t_losses_ransac)
         t_loss_sym = np.mean(self.t_losses_sym)
+        rte_002_sym, rte_005_sym, rte_010_sym = _compute_rte(self.t_losses_sym)
         r_loss_ransac = np.mean(self.r_losses_ransac)
+        rre_005_ransac, rre_015_ransac, rre_045_ransac = _compute_rre(self.r_losses_ransac)
         r_loss_sym = np.mean(self.r_losses_sym)
+        rre_005_sym, rre_015_sym, rre_045_sym = _compute_rre(self.r_losses_sym)
         chamfer_dist_ransac = np.mean(self.chamfer_dist_ransac)
         chamfer_dist_sym = np.mean(self.chamfer_dist_sym)
         sym_success_rate = np.mean(self.sym_ransac_success)
         self.logger.log(
-            f"vanilla ransac: translation error: {t_loss_ransac}, rotation error: {r_loss_ransac}, "
+            f"vanilla ransac:\n"
+            f"translation error: {t_loss_ransac},\n"
+            f"rte 0.02: {rte_002_ransac}, rte 0.05: {rte_005_ransac}, rte 0.10: {rte_010_ransac},\n"
+            f"rotation error: {r_loss_ransac},\n"
+            f"rre 5: {rre_005_ransac}, rre 15: {rre_015_ransac}, rre 45: {rre_045_ransac},\n"
             f"chamfer distance: {chamfer_dist_ransac}"
         )
         self.logger.log(
-            f"sym ransac: translation error: {t_loss_sym}, rotation error: {r_loss_sym}, "
+            f"sym ransac:\n"
+            f"translation error: {t_loss_sym},\n"
+            f"rte 0.02: {rte_002_sym}, rte 0.05: {rte_005_sym}, rte 0.10: {rte_010_sym},\n"
+            f"rotation error: {r_loss_sym},\n"
+            f"rre 5: {rre_005_sym}, rre 15: {rre_015_sym}, rre 45: {rre_045_sym},\n"
             f"chamfer distance: {chamfer_dist_sym}"
         )
+
         self.logger.log(f"sym success rate: {sym_success_rate}")
 
         # Visualize Results
@@ -430,6 +460,11 @@ class App:
         self._update_gui()
 
     def _update_gui(self):
+        pcd_file = self.scan2cad_info.test_files[self.display_pc_idx]
+        cad_file = self.cad_lib.pathes[self.stat["top1_predict"][self.display_pc_idx]]
+        tqdm.write(f"Query {self.config.category} {self.display_pc_idx}: {pcd_file}")
+        tqdm.write(f"Matched CAD: {cad_file}")
+
         if self.vedo_query_pcd1 is None:
             self.plotter.at(1).add(vedo.Text2D("Query Point Cloud"))
             self.plotter.at(2).add(vedo.Text2D("Closest CAD PC"))

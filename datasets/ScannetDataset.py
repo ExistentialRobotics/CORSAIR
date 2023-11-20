@@ -186,7 +186,11 @@ class ScannetDataset(CategoryDataset):
             # raise error after failed over 100 times
             if failed_count >= 100:
                 self.badscans.append(self.files[idx])
-                raise ValueError("Low in lier rate idx: {} path: {} for over 100 times".format(idx, self.files[idx]))
+                print("Low inlier rate idx: {} path: {} for over 100 times".format(idx, self.files[idx]))
+                while self.files[idx] in self.badscans:
+                    idx = random.randint(0, len(self.files) - 1)
+                failed_count = 0
+                # raise ValueError("Low in lier rate idx: {} path: {} for over 100 times".format(idx, self.files[idx]))
 
             # sample valid positive cad model
             positive_idx = self.generate_positive_inst(idx)
@@ -212,10 +216,22 @@ class ScannetDataset(CategoryDataset):
 
             # normalize. Scan normalize with the positive CAD model
             t = pos_coords.mean(0)
-
             base_coords -= t
             neg_coords -= t
             pos_coords -= t
+            # TODO: -t before, but the alignment is bad, double check!
+            # base_coords -= base_coords.mean(0)
+            # neg_coords -= neg_coords.mean(0)
+            # pos_coords -= pos_coords.mean(0)
+
+            # import open3d as o3d
+            # base_pcd = o3d.geometry.PointCloud()
+            # base_pcd.points = o3d.utility.Vector3dVector(base_coords)
+            # base_pcd.paint_uniform_color([1, 0, 0])
+            # pos_pcd = o3d.geometry.PointCloud()
+            # pos_pcd.points = o3d.utility.Vector3dVector(pos_coords)
+            # pos_pcd.paint_uniform_color([0, 1, 0])
+            # o3d.visualization.draw_geometries([base_pcd, pos_pcd])
 
             r = np.max(np.linalg.norm(pos_coords, 2, 1))
 

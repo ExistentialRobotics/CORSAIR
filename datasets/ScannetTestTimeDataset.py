@@ -112,10 +112,10 @@ class ScannetTestTimeDataset(CategoryDataset):
 
         # normalize. Scan normalize with the positive CAD model
 
-        t = pos_coords.mean(0)
-
-        base_coords -= t
-        pos_coords -= t
+        # t = pos_coords.mean(0)
+        # TODO: -t before, but the alignment is bad, double check!
+        base_coords -= base_coords.mean(0)
+        pos_coords -= pos_coords.mean(0)
 
         r = np.max(np.linalg.norm(pos_coords, 2, 1))
 

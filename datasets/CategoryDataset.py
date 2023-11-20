@@ -30,8 +30,9 @@ class CategoryDataset(ChairDataset):
         self.neg_ratio = neg_ratio
         self.voxel_size = voxel_size
 
-        self.fix_trans = np.load("./config/fix_trans.npy")
-        self.id2name, self.name2id = read_catname("./config/CatName.txt")
+        script_dir = os.path.dirname(__file__)
+        self.fix_trans = np.load(os.path.join(script_dir, "../configs/fix_trans.npy"))
+        self.id2name, self.name2id = read_catname(os.path.join(script_dir, "../configs/CatName.txt"))
 
         dist_mat_ref = np.load(
             os.path.join(self.dist_mat_root, "{}_{}.npy".format(catid, split))
