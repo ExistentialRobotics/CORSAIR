@@ -6,7 +6,7 @@
     <option name="enabledOnSave" value="true" />
     <option name="executionMode" value="BINARY" />
     <option name="pathToExecutable" value="/usr/bin/black" />
-    <option name="sdkName" value="Python 3.11 (erl-neural-sddf-JbhWmJL_)" />
+    <option name="sdkName" value="Python 3.10 (erl-CORSAIR-4oFZ7Yj6)" />
   </component>
   <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.10 (erl-CORSAIR-4oFZ7Yj6)" project-jdk-type="Python SDK" />
 </project>

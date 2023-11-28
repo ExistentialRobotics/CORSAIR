@@ -137,7 +137,26 @@ def split_corr(pcsA, pcsB, featsA, featsB, knn, subsample_size=1000):
 
         xyzA_corrs.append(xyzA_corr)
         xyzB_corrs.append(xyzB_corr)
-
+    # import open3d as o3d
+    # pcds_a = []
+    # pcds_b = []
+    # line_sets = []
+    # colors = np.array([
+    #     [1, 0, 0],
+    #     [0, 1, 0],
+    #     [0, 0, 1],
+    #     [1, 1, 0]
+    # ])
+    # offset = np.array([2.0, 0, 0])
+    # for pcA, pcB, xyzA_corr, xyzB_corr, color in zip(pcsA, pcsB, xyzA_corrs, xyzB_corrs, colors):
+    #     pcds_a.append(build_pcd(pcA, color * 0.5))
+    #     pcds_b.append(build_pcd(pcB - offset, color))
+    #     line_set = o3d.geometry.LineSet()
+    #     line_set.points = o3d.utility.Vector3dVector(np.concatenate([xyzA_corr, xyzB_corr - offset], axis=0))
+    #     line_set.lines = o3d.utility.Vector2iVector(np.array([[i, i + len(xyzA_corr)] for i in range(len(xyzA_corr))]))
+    #     line_set.colors = o3d.utility.Vector3dVector(np.tile(color, [len(xyzA_corr), 1]))
+    #     line_sets.append(line_set)
+    # o3d.visualization.draw_geometries(pcds_a + pcds_b + line_sets)
     xyzA_corrs = np.concatenate(xyzA_corrs, axis=0)
     xyzB_corrs = np.concatenate(xyzB_corrs, axis=0)
     return xyzA_corrs, xyzB_corrs

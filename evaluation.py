@@ -36,6 +36,8 @@ class Config:
     max_corr: float = 0.2
     distance: str = "l2"
     random_seed: int = 31
+    cache_dir: str = ""
+    register_top1: bool = True
     device: str = "cuda"
     ignore_cache: bool = False
 
@@ -80,8 +82,20 @@ class App:
         parser.add_argument(
             "--checkpoint",
             type=str,
-            default=os.path.join(script_dir, "ckpts", f"scannet_pose_table"),
+            default=os.path.join(script_dir, "ckpts", f"scannet_ret_table_best"),
             help="Path to the checkpoint",
+        )
+        parser.add_argument(
+            "--cache-dir",
+            type=str,
+            default=os.path.join(script_dir, "data"),
+            help="Path to load / save the result of registration.",
+        )
+        parser.add_argument(
+            "--register-gt",
+            action="store_false",
+            dest="register_top1",
+            help="Registering gt CAD model",
         )
         parser.add_argument(
             "--device",
@@ -128,6 +142,7 @@ class App:
             voxel_size=self.config.voxel_size,
             preload=False,
         )
+        self.dataset.pos_n = 1  # ask the dataset to load the ground truth best match
         self.cad_lib_loader = DataLoader(
             self.cad_lib,
             batch_size=32,
@@ -204,12 +219,12 @@ class App:
         self.lib_Ts = torch.cat(self.lib_Ts, dim=0)
 
         # Extract Retrieval Features for objects
-        self.pos_idx = []
         self.base_outputs = []
         self.base_origins = []
         self.base_feats = []
         self.base_Ts = []
-        self.pos_syms = []
+        self.best_match_idx = []
+        self.best_match_syms = []
         self.logger.log("Updating global feature in the Scan2CAD dataset")
         with torch.no_grad():
             for data in tqdm(self.scan2cad_loader, ncols=80):
@@ -219,8 +234,8 @@ class App:
                 )
 
                 self.base_Ts.append(data["base_T"])
-                self.pos_idx.append(data["pos_idx"])
-                self.pos_syms.append(data["pos_sym"])
+                self.best_match_idx.append(data["pos_idx"])
+                self.best_match_syms.append(data["pos_sym"])
                 batch_size = len(data["pos_idx"])
 
                 base_output, base_feat = model(base_input)
@@ -233,17 +248,21 @@ class App:
 
                 base_feat_norm = nn.functional.normalize(base_feat, dim=1)
                 self.base_feats.append(base_feat_norm)
-        self.pos_idx = torch.cat(self.pos_idx, dim=0)
         self.base_feats = torch.cat(self.base_feats, dim=0)
         self.base_Ts = torch.cat(self.base_Ts, dim=0)
-        self.pos_syms = torch.cat(self.pos_syms, dim=0)
+        self.best_match_idx = torch.cat(self.best_match_idx, dim=0)
+        self.best_match_syms = torch.cat(self.best_match_syms, dim=0)
 
         # Evaluate Retrieval Results
         self.descriptors = self.base_feats.detach().cpu().numpy()
         self.lib_descriptors = self.lib_feats.detach().cpu().numpy()
-        self.best_match_idx = self.pos_idx.detach().cpu().numpy()
+        self.best_match_idx = self.best_match_idx.detach().cpu().numpy()
         self.stat = scan2cad_retrieval_eval(
-            self.descriptors, self.lib_descriptors, self.best_match_idx, self.dataset.table, max(self.dataset.pos_n, 1)
+            self.descriptors,
+            self.lib_descriptors,
+            self.best_match_idx,
+            self.dataset.table,
+            int(0.1 * self.dataset.table.shape[1]),  # Precision@M=0.1n
         )
         self.logger.log(f"top1_error: {self.stat['top1_error']}")
         self.logger.log(f"precision: {self.stat['precision']}")
@@ -264,7 +283,7 @@ class App:
                 tqdm.write(f"Processing {i}th query")
                 baseF = self.base_outputs[i]
                 xyz0 = self.base_origins[i]
-                pos_idx = self.stat["top1_predict"][i]
+                pos_idx = self.stat["top1_predict" if self.config.register_top1 else "gt"][i]
                 cadF = self.lib_outputs[pos_idx]
                 xyz1 = self.lib_origins[pos_idx]
                 cad_sym = self.sym_label[pos_idx]
@@ -301,7 +320,8 @@ class App:
             rte_002 = np.sum(np.array(t_losses) <= 0.02) / len(t_losses)
             rte_005 = np.sum(np.array(t_losses) <= 0.05) / len(t_losses)
             rte_010 = np.sum(np.array(t_losses) <= 0.10) / len(t_losses)
-            return rte_002, rte_005, rte_010
+            rte_015 = np.sum(np.array(t_losses) <= 0.15) / len(t_losses)
+            return rte_002, rte_005, rte_010, rte_015
 
         def _compute_rre(r_losses):
             r_losses = np.rad2deg(np.array(r_losses))
@@ -311,9 +331,9 @@ class App:
             return rre_005, rre_015, rre_045
 
         t_loss_ransac = np.mean(self.t_losses_ransac)
-        rte_002_ransac, rte_005_ransac, rte_010_ransac = _compute_rte(self.t_losses_ransac)
+        rte_002_ransac, rte_005_ransac, rte_010_ransac, rte_015_ransac = _compute_rte(self.t_losses_ransac)
         t_loss_sym = np.mean(self.t_losses_sym)
-        rte_002_sym, rte_005_sym, rte_010_sym = _compute_rte(self.t_losses_sym)
+        rte_002_sym, rte_005_sym, rte_010_sym, rte_015_sym = _compute_rte(self.t_losses_sym)
         r_loss_ransac = np.mean(self.r_losses_ransac)
         rre_005_ransac, rre_015_ransac, rre_045_ransac = _compute_rre(self.r_losses_ransac)
         r_loss_sym = np.mean(self.r_losses_sym)
@@ -324,7 +344,8 @@ class App:
         self.logger.log(
             f"vanilla ransac:\n"
             f"translation error: {t_loss_ransac},\n"
-            f"rte 0.02: {rte_002_ransac}, rte 0.05: {rte_005_ransac}, rte 0.10: {rte_010_ransac},\n"
+            f"rte 0.02: {rte_002_ransac}, rte 0.05: {rte_005_ransac}, "
+            f"rte 0.10: {rte_010_ransac}, rte 0.15: {rte_015_ransac}\n"
             f"rotation error: {r_loss_ransac},\n"
             f"rre 5: {rre_005_ransac}, rre 15: {rre_015_ransac}, rre 45: {rre_045_ransac},\n"
             f"chamfer distance: {chamfer_dist_ransac}"
@@ -332,7 +353,8 @@ class App:
         self.logger.log(
             f"sym ransac:\n"
             f"translation error: {t_loss_sym},\n"
-            f"rte 0.02: {rte_002_sym}, rte 0.05: {rte_005_sym}, rte 0.10: {rte_010_sym},\n"
+            f"rte 0.02: {rte_002_sym}, rte 0.05: {rte_005_sym}, "
+            f"rte 0.10: {rte_010_sym}, rte 0.15: {rte_015_sym}\n"
             f"rotation error: {r_loss_sym},\n"
             f"rre 5: {rre_005_sym}, rre 15: {rre_015_sym}, rre 45: {rre_045_sym},\n"
             f"chamfer distance: {chamfer_dist_sym}"
@@ -350,43 +372,53 @@ class App:
             return False
 
         def _load_np(name: str):
-            name = os.path.join(os.path.dirname(__file__), "data", name)
+            name = os.path.join(self.config.cache_dir, name)
             if not os.path.exists(name):
                 raise FileNotFoundError(f"{name} not found")
             return np.load(name)
 
+        if self.config.register_top1:
+            suffix = "_top1.npy"
+        else:
+            suffix = "_gt.npy"
+
         try:
-            self.Ts_est_ransac = _load_np(f"Ts_est_ransac_{self.config.category}.npy")
+            self.Ts_est_ransac = _load_np(f"Ts_est_ransac_{self.config.category}{suffix}")
             self.Ts_est_ransac = [x.reshape(4, 4) for x in self.Ts_est_ransac]
-            self.Ts_est_best = _load_np(f"Ts_est_best_{self.config.category}.npy")
+            self.Ts_est_best = _load_np(f"Ts_est_best_{self.config.category}{suffix}")
             self.Ts_est_best = [x.reshape(4, 4) for x in self.Ts_est_best]
-            self.t_losses_ransac = _load_np(f"t_losses_ransac_{self.config.category}.npy")
-            self.t_losses_sym = _load_np(f"t_losses_sym_{self.config.category}.npy")
-            self.r_losses_ransac = _load_np(f"r_losses_ransac_{self.config.category}.npy")
-            self.r_losses_sym = _load_np(f"r_losses_sym_{self.config.category}.npy")
-            self.sym_ransac_success = _load_np(f"sym_ransac_success_{self.config.category}.npy")
-            self.chamfer_dist_ransac = _load_np(f"chamfer_dist_ransac_{self.config.category}.npy")
-            self.chamfer_dist_sym = _load_np(f"chamfer_dist_sym_{self.config.category}.npy")
+            self.t_losses_ransac = _load_np(f"t_losses_ransac_{self.config.category}{suffix}")
+            self.t_losses_sym = _load_np(f"t_losses_sym_{self.config.category}{suffix}")
+            self.r_losses_ransac = _load_np(f"r_losses_ransac_{self.config.category}{suffix}")
+            self.r_losses_sym = _load_np(f"r_losses_sym_{self.config.category}{suffix}")
+            self.sym_ransac_success = _load_np(f"sym_ransac_success_{self.config.category}{suffix}")
+            self.chamfer_dist_ransac = _load_np(f"chamfer_dist_ransac_{self.config.category}{suffix}")
+            self.chamfer_dist_sym = _load_np(f"chamfer_dist_sym_{self.config.category}{suffix}")
             return True
         except FileNotFoundError:
             return False
 
     def _save_data(self):
         def _save_np(name: str, data):
-            name = os.path.join(os.path.dirname(__file__), "data", name)
+            name = os.path.join(self.config.cache_dir, name)
             np.save(name, data)
 
+        if self.config.register_top1:
+            suffix = "_top1.npy"
+        else:
+            suffix = "_gt.npy"
+
         Ts_est_ransac = np.array([x.flatten() for x in self.Ts_est_ransac])
-        _save_np(f"Ts_est_ransac_{self.config.category}.npy", Ts_est_ransac)
+        _save_np(f"Ts_est_ransac_{self.config.category}{suffix}", Ts_est_ransac)
         Ts_est_best = np.array([x.flatten() for x in self.Ts_est_best])
-        _save_np(f"Ts_est_best_{self.config.category}.npy", Ts_est_best)
-        _save_np(f"t_losses_ransac_{self.config.category}.npy", self.t_losses_ransac)
-        _save_np(f"t_losses_sym_{self.config.category}.npy", self.t_losses_sym)
-        _save_np(f"r_losses_ransac_{self.config.category}.npy", self.r_losses_ransac)
-        _save_np(f"r_losses_sym_{self.config.category}.npy", self.r_losses_sym)
-        _save_np(f"sym_ransac_success_{self.config.category}.npy", self.sym_ransac_success)
-        _save_np(f"chamfer_dist_ransac_{self.config.category}.npy", self.chamfer_dist_ransac)
-        _save_np(f"chamfer_dist_sym_{self.config.category}.npy", self.chamfer_dist_sym)
+        _save_np(f"Ts_est_best_{self.config.category}{suffix}", Ts_est_best)
+        _save_np(f"t_losses_ransac_{self.config.category}{suffix}", self.t_losses_ransac)
+        _save_np(f"t_losses_sym_{self.config.category}{suffix}", self.t_losses_sym)
+        _save_np(f"r_losses_ransac_{self.config.category}{suffix}", self.r_losses_ransac)
+        _save_np(f"r_losses_sym_{self.config.category}{suffix}", self.r_losses_sym)
+        _save_np(f"sym_ransac_success_{self.config.category}{suffix}", self.sym_ransac_success)
+        _save_np(f"chamfer_dist_ransac_{self.config.category}{suffix}", self.chamfer_dist_ransac)
+        _save_np(f"chamfer_dist_sym_{self.config.category}{suffix}", self.chamfer_dist_sym)
 
     def _init_gui(self):
         # layout:
@@ -452,6 +484,8 @@ class App:
             self.display_pc_idx += 1
         elif event.keypress == "Left":
             self.display_pc_idx -= 1
+        elif event.keypress == "q":
+            self.plotter.close()
         if self.display_pc_idx < 0:
             self.display_pc_idx = 0
         elif self.display_pc_idx >= len(self.base_outputs):
@@ -461,14 +495,12 @@ class App:
 
     def _update_gui(self):
         pcd_file = self.scan2cad_info.test_files[self.display_pc_idx]
-        cad_file = self.cad_lib.pathes[self.stat["top1_predict"][self.display_pc_idx]]
         tqdm.write(f"Query {self.config.category} {self.display_pc_idx}: {pcd_file}")
-        tqdm.write(f"Matched CAD: {cad_file}")
+        tqdm.write(f"Predicted Matched CAD: {self.cad_lib.pathes[self.stat['top1_predict'][self.display_pc_idx]]}")
+        tqdm.write(f"Ground Truth Matched CAD: {self.cad_lib.pathes[self.stat['gt'][self.display_pc_idx]]}")
 
         if self.vedo_query_pcd1 is None:
             self.plotter.at(1).add(vedo.Text2D("Query Point Cloud"))
-            self.plotter.at(2).add(vedo.Text2D("Closest CAD PC"))
-            self.plotter.at(3).add(vedo.Text2D("Farthest CAD PC"))
         else:
             self.plotter.at(1).remove(self.vedo_query_pcd1, self.vedo_query_flagpole1)
             self.plotter.at(2).remove(self.vedo_query_pcd1)
@@ -477,13 +509,14 @@ class App:
         transform = self.base_Ts[self.display_pc_idx].detach().cpu().numpy()
         self.vedo_query_pcd1 = vedo.Points(pcd_points).apply_transform(np.linalg.inv(transform)).color("red")
         self.vedo_query_flagpole1 = self.vedo_query_pcd1.flagpole(
-            f"Query {self.config.category} {self.display_pc_idx}", s=0.05
+            f"Query {self.config.category} {self.display_pc_idx}",
+            s=0.05,
         )
         self.plotter.at(1).add(self.vedo_query_pcd1, self.vedo_query_flagpole1).render(resetcam=True)
 
         if self.vedo_pos_pcd1 is None:
-            self.plotter.at(2).add(vedo.Text2D("Closest CAD PC"))
-            self.plotter.at(3).add(vedo.Text2D("Farthest CAD PC"))
+            self.plotter.at(2).add(vedo.Text2D("Predicted Closest CAD PC"))
+            self.plotter.at(3).add(vedo.Text2D("Predicted Farthest CAD PC"))
         else:
             self.plotter.at(2).remove(self.vedo_pos_pcd1, self.vedo_pos_flagpole1)
             self.plotter.at(3).remove(self.vedo_neg_pcd, self.vedo_neg_flagpole)
@@ -492,7 +525,7 @@ class App:
             ord=2,
             axis=2,
         )[0, :]
-        pos_idx = np.argmin(dists)
+        pos_idx = np.argmin(dists)  # top1-predict
         assert pos_idx == self.stat["top1_predict"][self.display_pc_idx]
         neg_idx = np.argmax(dists)
         self.vedo_pos_pcd1 = vedo.Points(self.lib_origins[pos_idx].detach().cpu().numpy()).color("green")
@@ -522,6 +555,7 @@ class App:
         self.plotter.at(4).add(self.vedo_colored_pcd).render(resetcam=True)
 
         # visualize registration by vanilla ransac
+        pos_idx = self.stat["top1_predict" if self.config.register_top1 else "gt"][self.display_pc_idx]
         if self.vedo_query_pcd2 is None:
             self.plotter.at(5).add(vedo.Text2D("Registration (Vanilla RANSAC)"))
         else:

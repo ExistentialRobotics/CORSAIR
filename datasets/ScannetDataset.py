@@ -214,6 +214,15 @@ class ScannetDataset(CategoryDataset):
 
             base_coords = apply_transform(base_coords, np.matmul(np.linalg.inv(T_pos), T_base))
 
+            # import open3d as o3d
+            # base_pcd = o3d.geometry.PointCloud()
+            # base_pcd.points = o3d.utility.Vector3dVector(base_coords)
+            # base_pcd.paint_uniform_color([1, 0, 0])
+            # pos_pcd = o3d.geometry.PointCloud()
+            # pos_pcd.points = o3d.utility.Vector3dVector(pos_coords)
+            # pos_pcd.paint_uniform_color([0, 1, 0])
+            # o3d.visualization.draw_geometries([base_pcd, pos_pcd])
+
             # normalize. Scan normalize with the positive CAD model
             t = pos_coords.mean(0)
             base_coords -= t
