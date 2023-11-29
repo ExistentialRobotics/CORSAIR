@@ -81,43 +81,43 @@ will evaluate the model on the chair category and register the gt CAD model usin
 ## Registration
 - RRE: relative rotation error
 
-|       Checkpoint        | Registration Target | Sym.  |      Mean RRE      | RRE $\le 5^\circ$ | RRE $\le 15^\circ$ | RRE $\le 45^\circ$ |
-| :---------------------: | :-----------------: | :---: | :----------------: | :---------------: | :----------------: | :----------------: |
-| scannet_pose_chair_best |   Top1-Prediction   |   N   |   $39.17^\circ$    |       6.64%       |       54.78%       |       80.36%       |
-|                         |                     |   Y   |   $38.74^\circ$    |       9.87%       |       59.82%       |       81.17%       |
-|                         |    G.T. Matching    |   N   |   $21.23^\circ$    |      12.69%       |       75.33%       |     **92.15%**     |
-|                         |                     |   Y   |   $21.25^\circ$    |    **20.24%**     |       80.87%       |       91.54%       |
-|   scannet_pose_chair    |   Top1-Prediction   |   N   |   $38.84^\circ$    |       8.06%       |       54.98%       |       79.46%       |
-|                         |                     |   Y   |   $39.85^\circ$    |       9.77%       |       59.82%       |       79.56%       |
-|                         |    G.T. Matching    |   N   |   $22.34^\circ$    |      13.39%       |       73.11%       |       91.64%       |
-|                         |                     |   Y   |   $21.00^\circ$    |      19.54%       |       79.15%       |       91.84%       |
-| scannet_ret_chair_best  |   Top1-Prediction   |   N   |   $33.68^\circ$    |       7.96%       |       60.12%       |       83.79%       |
-|                         |                     |   Y   |   $33.95^\circ$    |    **10.98%**     |       66.26%       |       83.38%       |
-|                         |    G.T. Matching    |   N   |   $22.32^\circ$    |      13.19%       |       74.62%       |       91.64%       |
-|                         |                     |   Y   |   $20.73^\circ$    |      19.54%       |       80.26%       |       92.04%       |
-|  **scannet_ret_chair**  |   Top1-Prediction   |   N   | $\bm{31.83^\circ}$ |       8.26%       |       64.65%       |     **84.49%**     |
-|                         |                     |   Y   |   $32.78^\circ$    |      10.78%       |     **68.38%**     |       84.19%       |
-|                         |    G.T. Matching    |   N   |   $22.29^\circ$    |      13.39%       |       74.92%       |       91.14%       |
-|                         |                     |   Y   | $\bm{20.53^\circ}$ |      19.33%       |     **81.77%**     |       91.54%       |
+|       Checkpoint        | Registration Target | Sym.  |        Mean RRE        | RRE $\le 5^\circ$ | RRE $\le 15^\circ$ | RRE $\le 45^\circ$ |
+| :---------------------: | :-----------------: | :---: | :--------------------: | :---------------: | :----------------: | :----------------: |
+| scannet_pose_chair_best |   Top1-Prediction   |   N   |     $39.17^\circ$      |       6.64%       |       54.78%       |       80.36%       |
+|                         |                     |   Y   |     $38.74^\circ$      |       9.87%       |       59.82%       |       81.17%       |
+|                         |    G.T. Matching    |   N   |     $21.23^\circ$      |      12.69%       |       75.33%       |     **92.15%**     |
+|                         |                     |   Y   |     $21.25^\circ$      |    **20.24%**     |       80.87%       |       91.54%       |
+|   scannet_pose_chair    |   Top1-Prediction   |   N   |     $38.84^\circ$      |       8.06%       |       54.98%       |       79.46%       |
+|                         |                     |   Y   |     $39.85^\circ$      |       9.77%       |       59.82%       |       79.56%       |
+|                         |    G.T. Matching    |   N   |     $22.34^\circ$      |      13.39%       |       73.11%       |       91.64%       |
+|                         |                     |   Y   |     $21.00^\circ$      |      19.54%       |       79.15%       |       91.84%       |
+| scannet_ret_chair_best  |   Top1-Prediction   |   N   |     $33.68^\circ$      |       7.96%       |       60.12%       |       83.79%       |
+|                         |                     |   Y   |     $33.95^\circ$      |    **10.98%**     |       66.26%       |       83.38%       |
+|                         |    G.T. Matching    |   N   |     $22.32^\circ$      |      13.19%       |       74.62%       |       91.64%       |
+|                         |                     |   Y   |     $20.73^\circ$      |      19.54%       |       80.26%       |       92.04%       |
+|  **scannet_ret_chair**  |   Top1-Prediction   |   N   | $\mathbf{31.83^\circ}$ |       8.26%       |       64.65%       |     **84.49%**     |
+|                         |                     |   Y   |     $32.78^\circ$      |      10.78%       |     **68.38%**     |       84.19%       |
+|                         |    G.T. Matching    |   N   |     $22.29^\circ$      |      13.39%       |       74.92%       |       91.14%       |
+|                         |                     |   Y   | $\mathbf{20.53^\circ}$ |      19.33%       |     **81.77%**     |       91.54%       |
 
-|         Checkpoint         | Registration Target | Sym.  |      Mean RRE      | RRE $\le 5^\circ$ | RRE $\le 15^\circ$ | RRE $\le 45^\circ$ |
-| :------------------------: | :-----------------: | :---: | :----------------: | :---------------: | :----------------: | :----------------: |
-|  scannet_pose_table_best   |   Top1-Prediction   |   N   |   $56.60^\circ$    |      11.68%       |       42.61%       |       59.79%       |
-|                            |                     |   Y   | $\bm{54.99^\circ}$ |      22.33%       |       50.52%       |       61.51%       |
-|                            |    G.T. Matching    |   N   |   $42.73^\circ$    |      18.21%       |       59.11%       |       74.57%       |
-|                            |                     |   Y   |   $38.54^\circ$    |      33.33%       |       69.41%       |       76.98%       |
-|     scannet_pose_table     |   Top1-Prediction   |   N   |   $64.17^\circ$    |      13.40%       |       42.27%       |       56.01%       |
-|                            |                     |   Y   |   $61.31^\circ$    |    **22.68%**     |       47.42%       |       58.08%       |
-|                            |    G.T. Matching    |   N   |   $39.45^\circ$    |      21.31%       |       62.89%       |       76.29%       |
-|                            |                     |   Y   |   $40.08^\circ$    |      35.05%       |       70.45%       |       75.60%       |
-| **scannet_ret_table_best** |   Top1-Prediction   |   N   |   $62.13^\circ$    |      13.40%       |       44.33%       |       58.42%       |
-|                            |                     |   Y   |   $56.28^\circ$    |      21.65%       |     **51.55%**     |     **61.86%**     |
-|                            |    G.T. Matching    |   N   |   $42.99^\circ$    |      20.27%       |       62.89%       |       73.88%       |
-|                            |                     |   Y   | $\bm{36.11^\circ}$ |    **39.52%**     |     **73.88%**     |     **78.01%**     |
-|     scannet_ret_table      |   Top1-Prediction   |   N   |   $66.43^\circ$    |      11.34%       |       36.77%       |       54.30%       |
-|                            |                     |   Y   |   $64.34^\circ$    |      20.27%       |       45.02%       |       57.04%       |
-|                            |    G.T. Matching    |   N   |   $45.52^\circ$    |      20.27%       |       62.89%       |       73.54%       |
-|                            |                     |   Y   |   $42.24^\circ$    |      35.05%       |       70.10%       |       74.57%       |
+|         Checkpoint         | Registration Target | Sym.  |        Mean RRE        | RRE $\le 5^\circ$ | RRE $\le 15^\circ$ | RRE $\le 45^\circ$ |
+| :------------------------: | :-----------------: | :---: | :--------------------: | :---------------: | :----------------: | :----------------: |
+|  scannet_pose_table_best   |   Top1-Prediction   |   N   |     $56.60^\circ$      |      11.68%       |       42.61%       |       59.79%       |
+|                            |                     |   Y   | $\mathbf{54.99^\circ}$ |      22.33%       |       50.52%       |       61.51%       |
+|                            |    G.T. Matching    |   N   |     $42.73^\circ$      |      18.21%       |       59.11%       |       74.57%       |
+|                            |                     |   Y   |     $38.54^\circ$      |      33.33%       |       69.41%       |       76.98%       |
+|     scannet_pose_table     |   Top1-Prediction   |   N   |     $64.17^\circ$      |      13.40%       |       42.27%       |       56.01%       |
+|                            |                     |   Y   |     $61.31^\circ$      |    **22.68%**     |       47.42%       |       58.08%       |
+|                            |    G.T. Matching    |   N   |     $39.45^\circ$      |      21.31%       |       62.89%       |       76.29%       |
+|                            |                     |   Y   |     $40.08^\circ$      |      35.05%       |       70.45%       |       75.60%       |
+| **scannet_ret_table_best** |   Top1-Prediction   |   N   |     $62.13^\circ$      |      13.40%       |       44.33%       |       58.42%       |
+|                            |                     |   Y   |     $56.28^\circ$      |      21.65%       |     **51.55%**     |     **61.86%**     |
+|                            |    G.T. Matching    |   N   |     $42.99^\circ$      |      20.27%       |       62.89%       |       73.88%       |
+|                            |                     |   Y   | $\mathbf{36.11^\circ}$ |    **39.52%**     |     **73.88%**     |     **78.01%**     |
+|     scannet_ret_table      |   Top1-Prediction   |   N   |     $66.43^\circ$      |      11.34%       |       36.77%       |       54.30%       |
+|                            |                     |   Y   |     $64.34^\circ$      |      20.27%       |       45.02%       |       57.04%       |
+|                            |    G.T. Matching    |   N   |     $45.52^\circ$      |      20.27%       |       62.89%       |       73.54%       |
+|                            |                     |   Y   |     $42.24^\circ$      |      35.05%       |       70.10%       |       74.57%       |
 
 - RTE: relative translation error
 
