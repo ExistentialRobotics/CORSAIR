@@ -342,22 +342,27 @@ class App:
         chamfer_dist_sym = np.mean(self.chamfer_dist_sym)
         sym_success_rate = np.mean(self.sym_ransac_success)
         self.logger.log(
+            f"\n==================================================================\n"
             f"vanilla ransac:\n"
             f"translation error: {t_loss_ransac},\n"
             f"rte 0.02: {rte_002_ransac}, rte 0.05: {rte_005_ransac}, "
             f"rte 0.10: {rte_010_ransac}, rte 0.15: {rte_015_ransac}\n"
+            f"------------------------------------------------------------------\n"
             f"rotation error: {r_loss_ransac},\n"
             f"rre 5: {rre_005_ransac}, rre 15: {rre_015_ransac}, rre 45: {rre_045_ransac},\n"
             f"chamfer distance: {chamfer_dist_ransac}"
         )
         self.logger.log(
+            f"\n==================================================================\n"
             f"sym ransac:\n"
             f"translation error: {t_loss_sym},\n"
             f"rte 0.02: {rte_002_sym}, rte 0.05: {rte_005_sym}, "
             f"rte 0.10: {rte_010_sym}, rte 0.15: {rte_015_sym}\n"
+            f"------------------------------------------------------------------\n"
             f"rotation error: {r_loss_sym},\n"
             f"rre 5: {rre_005_sym}, rre 15: {rre_015_sym}, rre 45: {rre_045_sym},\n"
-            f"chamfer distance: {chamfer_dist_sym}"
+            f"chamfer distance: {chamfer_dist_sym}\n"
+            f"==================================================================\n"
         )
 
         self.logger.log(f"sym success rate: {sym_success_rate}")
@@ -486,6 +491,7 @@ class App:
             self.display_pc_idx -= 1
         elif event.keypress == "q":
             self.plotter.close()
+            return
         if self.display_pc_idx < 0:
             self.display_pc_idx = 0
         elif self.display_pc_idx >= len(self.base_outputs):
