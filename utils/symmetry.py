@@ -242,7 +242,7 @@ def symmetric_cut4(feat, raw_pc, K, max_sample=100):
         raise ValueError("not defined")
 
 
-def sym_pose(baseF, xyz0, posF, xyz1, pos_sym, k_nn=5, max_corr=0.20):
+def sym_pose(baseF, xyz0, posF, xyz1, pos_sym, k_nn=5, max_corr=0.20, seed=0):
     """
     Estimate pose with and without symmetry
     """
@@ -252,7 +252,7 @@ def sym_pose(baseF, xyz0, posF, xyz1, pos_sym, k_nn=5, max_corr=0.20):
     source_pcd = xyz0[idx_0]
     target_pcd = xyz1[idx_1]
 
-    T_est_ransac = registration_based_on_corr(source_pcd, target_pcd, max_corr)
+    T_est_ransac = registration_based_on_corr(source_pcd, target_pcd, max_corr, seed)
 
     T_est_ransac = torch.from_numpy(T_est_ransac.astype(np.float32))
 
@@ -291,7 +291,7 @@ def sym_pose(baseF, xyz0, posF, xyz1, pos_sym, k_nn=5, max_corr=0.20):
 
         xyzA_corrs, xyzB_corrs = split_corr(pcsA, pcsB, featsA, featsB, k_nn, subsample_size=-1)
 
-        T_est = registration_based_on_corr(xyzA_corrs, xyzB_corrs, max_corr)
+        T_est = registration_based_on_corr(xyzA_corrs, xyzB_corrs, max_corr, seed)
 
         T_est = torch.from_numpy(T_est.astype(np.float32))
 
@@ -323,7 +323,7 @@ def sym_pose(baseF, xyz0, posF, xyz1, pos_sym, k_nn=5, max_corr=0.20):
 
         xyzA_corrs, xyzB_corrs = split_corr(pcsA, pcsB, featsA, featsB, k_nn, subsample_size=-1)
 
-        T_est = registration_based_on_corr(xyzA_corrs, xyzB_corrs, max_corr)
+        T_est = registration_based_on_corr(xyzA_corrs, xyzB_corrs, max_corr, seed)
 
         T_est = torch.from_numpy(T_est.astype(np.float32))
 

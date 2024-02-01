@@ -59,7 +59,7 @@ def find_kcorr(F0, F1, k=1, nn_max_n=500, subsample_size=-1):
         return inds0, nn_inds
 
 
-def registration_based_on_corr(source_pcd, target_pcd, max_corr_dist=0.03):
+def registration_based_on_corr(source_pcd, target_pcd, max_corr_dist=0.03, seed=0):
     source_pcd_o3d = o3d.geometry.PointCloud()
     source_pcd_o3d.points = o3d.utility.Vector3dVector(source_pcd)
     target_pcd_o3d = o3d.geometry.PointCloud()
@@ -71,8 +71,9 @@ def registration_based_on_corr(source_pcd, target_pcd, max_corr_dist=0.03):
     # seems to be better when max_corr_dist is larger
     # max_corr_dist = 0.03
     # there are several other parameters of RANSAC
+    o3d.utility.random.seed(seed)
     result = o3d.pipelines.registration.registration_ransac_based_on_correspondence(
-        source_pcd_o3d, target_pcd_o3d, corr_o3d, max_corr_dist
+        source_pcd_o3d, target_pcd_o3d, corr_o3d, max_corr_dist, ransac_n=5
     )
     T_est = result.transformation
     return T_est
@@ -92,7 +93,7 @@ def eval_pose(T_est, T0, T1, axis_symmetry=1):
         trans = np.eye(4)
         trans[:3, :3] = R
 
-        T_gt = np.matmul(T1, np.matmul(np.linalg.inv(trans), np.linalg.inv(T0))).float()
+        T_gt = np.matmul(T1, np.matmul(np.linalg.inv(trans), np.linalg.inv(T0))).astype(np.float32)
 
         r_loss = np.arccos(
             np.clip((np.trace(T_est[:3, :3].t() @ T_gt[:3, :3]) - 1) / 2, -1, 1)
