@@ -72,20 +72,19 @@ For example,
 python evaluation.py --shapenet-pc15k-root data/ShapeNetCore.v2.PC15k --scan2cad-pc-root data/Scan2CAD_pc --scan2cad-annotation-root data/Scan2CAD_annotations --category chair --checkpoint ckpts/scannet_pose_chair_best --cache-dir data/cache_pose_best --register-gt --device cuda
 ```
 
-will evaluate the model on the chair category and register the gt CAD model using the GPU.
+will evaluate the model on the chair category and register the ground-truth CAD model using the GPU.
 
 ![](assets/gui.png)
 
 - Press Left/Right to navigate through the results.
 - Drag the mouse to rotate the object.
 
-**Note: the `Predicted Closest CAD PC` may not align with the query point cloud well when it is not the ground truth
-matching.**
+**Note: the `Predicted Closest CAD PC` may not align with the query point cloud well when the matching point cloud is not the ground truth.**
 
 # Metrics
 
-**Note: the numbers of `Top1-Prediction` tend to be lower because the predicted CAD model may not be the ground truth
-matching, such that the ground truth relative pose is not accurate.**
+**Note: the numbers of `Top1-Prediction` tend to be lower because the predicted CAD model may not be the ground-truth
+match, making the relative pose estimate less accurate.**
 
 ## Retrival
 
@@ -186,7 +185,7 @@ matching, such that the ground truth relative pose is not accurate.**
 |                            |                     |  Y   |   0.25   |   **4.12%**    |     23.02%     |     54.30%     |     68.38%     |
 
 The above registration results are affected by the quality of the predicted CAD model and the accuracy of the ground
-truth pose. To evaluate the registration more fairly with accurate ground truth and without the affect of bad object
+truth poses. To evaluate the registration more fairly with accurate ground truth and without the affect of bad object
 retrieval, please run the `evalution-shapenet.py` script. e.g.
 
 ```shell
