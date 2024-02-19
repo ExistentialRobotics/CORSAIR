@@ -1,22 +1,20 @@
 CORSAIR
 =======
 
-Repo for
-paper [CORSAIR: Convolutional Object Retrieval and Symmetry-AIded Registration](https://ieeexplore.ieee.org/document/9636347).
+Code repository for
+the paper [CORSAIR: Convolutional Object Retrieval and Symmetry-AIded Registration](https://ieeexplore.ieee.org/document/9636347).
 
 # Cite
 
 ```bibtex
-@INPROCEEDINGS{9636347,
+@INPROCEEDINGS{CORSAIR,
     author = {Zhao, Tianyu and Feng, Qiaojun and Jadhav, Sai and Atanasov, Nikolay},
-    booktitle = {2021 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS)},
-    title = {CORSAIR: Convolutional Object Retrieval and Symmetry-AIded Registration},
+    booktitle = {IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS)},
+    title = {{CORSAIR: Convolutional Object Retrieval and Symmetry-AIded Registration}},
     year = {2021},
-    volume = {},
-    number = {},
     pages = {47-54},
-    keywords = {Training;Visualization;Shape;Databases;Pose estimation;Nearest neighbor methods;Feature extraction},
-    doi = {10.1109/IROS51168.2021.9636347} }
+    doi = {10.1109/IROS51168.2021.9636347}
+}
 ```
 
 # Setup
