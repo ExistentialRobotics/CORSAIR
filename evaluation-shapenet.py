@@ -319,7 +319,7 @@ class App:
         self.poses_pred_sym = []
         self.poses_pred_ransac = []
 
-        results = Parallel(n_jobs=-1, verbose=100, pre_dispatch="1.5*n_jobs", backend="multiprocessing")(
+        results = Parallel(n_jobs=-1, verbose=100, pre_dispatch="1.5*n_jobs")(
             delayed(self.registration_worker)(*x) for x in self.registration_producer()
         )
 

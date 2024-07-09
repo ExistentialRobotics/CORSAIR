@@ -65,9 +65,9 @@ def find_kcorr(F0, F1, k=1, nn_max_n=500, subsample_size=-1):
 
 def registration_based_on_corr(source_pcd, target_pcd, max_corr_dist=0.03, seed=0):
     source_pcd_o3d = o3d.geometry.PointCloud()
-    source_pcd_o3d.points = o3d.utility.Vector3dVector(source_pcd)
+    source_pcd_o3d.points = o3d.utility.Vector3dVector(source_pcd.astype(np.float64))
     target_pcd_o3d = o3d.geometry.PointCloud()
-    target_pcd_o3d.points = o3d.utility.Vector3dVector(target_pcd)
+    target_pcd_o3d.points = o3d.utility.Vector3dVector(target_pcd.astype(np.float64))
     corr_o3d = o3d.utility.Vector2iVector(np.asarray(list(map(lambda x: [x, x], range(source_pcd.shape[0])))))
     # hyperparameter to tune
     # seems to be better when max_corr_dist is larger

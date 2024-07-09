@@ -43,6 +43,11 @@ RUN chown -R user:user /home/user
 USER user
 WORKDIR /home/user
 
+RUN git clone --recursive https://github.com/pybind/pybind11 && cd pybind11 && \
+    git checkout 50acb81b0a0f769dedd265727ade44e03778a977 && mkdir build && cd build && \
+    cmake .. && make -j$(nproc) && sudo make install && \
+    cd ../.. && rm -rf pybind11
+
 RUN git clone --recursive https://github.com/ExistentialRobotics/CORSAIR
 
 WORKDIR /home/user/CORSAIR
@@ -51,6 +56,11 @@ RUN pip3 install --upgrade pip
 RUN pip3 install -r requirements.txt --user --verbose
 RUN cd deps/MinkowskiEngine && rm requirements.txt && export TORCH_CUDA_ARCH_LIST="7.0 7.5 8.0 8.6 8.9" && \
     python3 setup.py install --user --verbose --blas=openblas --force_cuda --cuda_home=/usr/local/cuda
+
+RUN pip3 uninstall -y open3d && cd /home/user && git clone --recursive https://github.com/isl-org/Open3D && \
+    cd Open3D && git checkout 160209d055214a199719559d7e65fcecd14960ce && bash utils/install_deps_ubuntu.sh && \
+    mkdir build && cd build && cmake .. -DUSE_SYSTEM_PYBIND11=ON && make install-pip-package -j$(nproc) && \
+    cd /home/user && rm -rf Open3D
 
 COPY --chown=user:user data/ShapeNetCore.v2.PC15k /home/user/CORSAIR/data/ShapeNetCore.v2.PC15k
 COPY --chown=user:user entrypoint.bash /home/user/CORSAIR/entrypoint.bash
