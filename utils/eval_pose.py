@@ -41,18 +41,18 @@ def find_kcorr(F0, F1, k=1, nn_max_n=500, subsample_size=-1):
         inds1 = np.random.choice(len(F1), N1, replace=False)
         F0, F1 = F0[inds0], F1[inds1]
     # Compute the nn
-    device = torch.device("cuda")
-    if not torch.is_tensor(F0):
-        F0 = torch.from_numpy(F0).to(device)
-    if not torch.is_tensor(F1):
-        F1 = torch.from_numpy(F1).to(device)
+    # device = torch.device("cuda")
+    # if not torch.is_tensor(F0):
+    #     F0 = torch.from_numpy(F0).to(device)
+    # if not torch.is_tensor(F1):
+    #     F1 = torch.from_numpy(F1).to(device)
 
     if k == 1:
         # nn_inds = find_nn_gpu(F0, F1, nn_max_n=nn_max_n)
-        nn_inds = find_nn_cpu(F0.cpu().numpy(), F1.cpu().numpy()).flatten()
+        nn_inds = find_nn_cpu(F0, F1).flatten()
     else:
         # nn_inds = find_knn_gpu(F0, F1, k=k, nn_max_n=nn_max_n)
-        nn_inds = find_knn_cpu(F0.cpu().numpy(), F1.cpu().numpy(), k=k).flatten()
+        nn_inds = find_knn_cpu(F0, F1, k=k).flatten()
 
     if subsample_size > 0 and subsample:
         inds0 = np.repeat(inds0, k)
