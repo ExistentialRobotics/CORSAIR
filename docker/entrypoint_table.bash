@@ -13,12 +13,12 @@ python3 evaluation-shapenet.py \
     --category $CATEGORY \
     --model-ckpt ckpts/$CKPT \
     --n-models $N_MODELS \
-    --n-poses-per-model N_POSES_PER_MODEL \
+    --n-poses-per-model $N_POSES_PER_MODEL \
     --random-seed $SEED
 cp results-shapenet-seed0-$CATEGORY-$N_MODELS-$N_POSES_PER_MODEL.csv host
 cp poses-shapenet-seed0-$CATEGORY-$N_MODELS-$N_POSES_PER_MODEL.npz host
 python3 compute_metrics_shapenet.py \
     --category $CATEGORY \
     --n-models $N_MODELS \
-    --n-poses-per-model N_POSES_PER_MODEL \
+    --n-poses-per-model $N_POSES_PER_MODEL \
     --random-seed $SEED
