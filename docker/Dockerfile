@@ -66,6 +66,6 @@ RUN pip3 uninstall -y open3d && cd /home/user && git clone --recursive https://g
     cd /home/user && rm -rf Open3D
 
 COPY --chown=user:user data/ShapeNetCore.v2.PC15k /home/user/CORSAIR/data/ShapeNetCore.v2.PC15k
-COPY --chown=user:user entrypoint.bash /home/user/CORSAIR/entrypoint.bash
-RUN chmod +x /home/user/CORSAIR/entrypoint.bash
-ENTRYPOINT ["/home/user/CORSAIR/entrypoint.bash"]
+COPY --chown=user:user entrypoint_chair.bash /home/user/CORSAIR/entrypoint_chair.bash
+RUN chmod +x /home/user/CORSAIR/entrypoint_chair.bash
+ENTRYPOINT ["/home/user/CORSAIR/entrypoint_chair.bash"]
