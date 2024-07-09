@@ -11,6 +11,8 @@ torchvision = "*"
 tqdm = "*"
 vedo = "*"
 transforms3d = "*"
+joblib = "*"
+gdown = "*"
 
 [dev-packages]
 

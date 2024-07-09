@@ -13,6 +13,7 @@ from sklearn.cluster import KMeans
 from utils.visualize import Jvisualize
 from utils.read_json import build_pcd
 from utils.preprocess import apply_transform, chamfer_gpu_1direction
+from utils.preprocess import chamfer_kdtree_1direction
 from utils.eval_pose import *
 
 
@@ -256,10 +257,11 @@ def sym_pose(baseF, xyz0, posF, xyz1, pos_sym, k_nn=5, max_corr=0.20, seed=0):
 
     T_est_ransac = torch.from_numpy(T_est_ransac.astype(np.float32))
 
-    chamf_dist_ransac = chamfer_gpu_1direction(
-        apply_transform(xyz0, T_est_ransac).cuda(),
-        torch.from_numpy(xyz1).cuda(),
-    )
+    # chamf_dist_ransac = chamfer_gpu_1direction(
+    #     apply_transform(xyz0, T_est_ransac).cuda(),
+    #     torch.from_numpy(xyz1).cuda(),
+    # )
+    chamf_dist_ransac = chamfer_kdtree_1direction(apply_transform(xyz0, T_est_ransac), xyz1)
 
     chamf_dist_best = chamf_dist_ransac
     T_est_best = T_est_ransac
@@ -295,10 +297,8 @@ def sym_pose(baseF, xyz0, posF, xyz1, pos_sym, k_nn=5, max_corr=0.20, seed=0):
 
         T_est = torch.from_numpy(T_est.astype(np.float32))
 
-        chamf_dist = chamfer_gpu_1direction(
-            apply_transform(xyz0, T_est).cuda(),
-            torch.from_numpy(xyz1).cuda(),
-        )
+        # chamf_dist = chamfer_gpu_1direction(apply_transform(xyz0, T_est).cuda(), torch.from_numpy(xyz1).cuda())
+        chamf_dist = chamfer_kdtree_1direction(apply_transform(xyz0, T_est), xyz1)
 
         rot_item = pos_masks.pop(0)
         pos_masks.append(rot_item)
@@ -327,10 +327,8 @@ def sym_pose(baseF, xyz0, posF, xyz1, pos_sym, k_nn=5, max_corr=0.20, seed=0):
 
         T_est = torch.from_numpy(T_est.astype(np.float32))
 
-        chamf_dist = chamfer_gpu_1direction(
-            apply_transform(xyz0, T_est).cuda(),
-            torch.from_numpy(xyz1).cuda(),
-        )
+        # chamf_dist = chamfer_gpu_1direction(apply_transform(xyz0, T_est).cuda(), torch.from_numpy(xyz1).cuda())
+        chamf_dist = chamfer_kdtree_1direction(apply_transform(xyz0, T_est), xyz1)
 
         rot_item = pos_masks.pop(0)
         pos_masks.append(rot_item)

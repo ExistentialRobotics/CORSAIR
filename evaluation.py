@@ -297,8 +297,8 @@ class App:
                     self.config.max_corr,
                 )
 
-                T0 = self.base_Ts[i]
-                T1 = self.lib_Ts[pos_idx]
+                T0 = self.base_Ts[i].cpu().numpy()
+                T1 = self.lib_Ts[pos_idx].cpu().numpy()
                 t_loss_ransac, r_loss_ransac = eval_pose(T_est_ransac, T0, T1, axis_symmetry=cad_sym)
                 t_loss_sym, r_loss_sym = eval_pose(T_est_best, T0, T1, axis_symmetry=cad_sym)
 
@@ -432,10 +432,6 @@ class App:
         # | 1. The query point cloud  | 2. The top pos CAD model | 3. The top neg CAD model |
         # | 4. The colored features   | 5. Vanilla RANSAC        | 6. Symmetry RANSAC       |
         # |---------------------------|--------------------------|--------------------------|
-        self.rn_query_pc = 1
-        self.rn_cad1 = 2
-        self.rn_cad2 = 3
-        self.rn_cad3 = 4
         dx = 0.01
         dy = 0.01
         nx = 3

@@ -5,6 +5,7 @@ import csv
 import copy
 import open3d as o3d
 import transforms3d
+from scipy.spatial import KDTree
 
 
 def load_raw_pc(path, samples):
@@ -45,6 +46,12 @@ def chamfer_gpu_1direction(pc0, pc1):
     pc1 = pc1[:, None, :]
     delta = pc0 - pc1
     return delta.norm(dim=2).min(0)[0].mean().item()
+
+
+def chamfer_kdtree_1direction(pc0, pc1):
+    tree = KDTree(pc1)
+    dd, ii = tree.query(pc0, k=1)
+    return dd.mean()
 
 
 def random_rotation(pointcloud):
@@ -215,9 +222,7 @@ def generate_rand_negative_pairs(positive_pairs, hash_seed, N0, N1, N_neg=0):
         N_neg = positive_pairs.shape[0] * 2
     pos_keys = _hash(positive_pairs, hash_seed)
 
-    neg_pairs = np.floor(np.random.rand(int(N_neg), 2) * np.array([[N0, N1]])).astype(
-        np.int64
-    )
+    neg_pairs = np.floor(np.random.rand(int(N_neg), 2) * np.array([[N0, N1]])).astype(np.int64)
     neg_keys = _hash(neg_pairs, hash_seed)
     mask = np.isin(neg_keys, pos_keys, assume_unique=False)
     return neg_pairs[np.logical_not(mask)]

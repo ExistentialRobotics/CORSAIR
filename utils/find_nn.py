@@ -2,7 +2,7 @@ import torch
 import numpy as np
 import open3d as o3d
 import torch.functional as F
-from scipy.spatial import cKDTree
+from scipy.spatial import KDTree
 
 
 def pdist(A, B, dist_type="L2"):
@@ -16,8 +16,17 @@ def pdist(A, B, dist_type="L2"):
 
 
 def find_nn_cpu(feat0, feat1, return_distance=False):
-    feat1tree = cKDTree(feat1)
-    dists, nn_inds = feat1tree.query(feat0, k=1, n_jobs=-1)
+    feat1tree = KDTree(feat1)
+    dists, nn_inds = feat1tree.query(feat0, k=1, workers=-1)
+    if return_distance:
+        return nn_inds, dists
+    else:
+        return nn_inds
+
+
+def find_knn_cpu(feat0, feat1, k, return_distance=False):
+    feat1tree = KDTree(feat1)
+    dists, nn_inds = feat1tree.query(feat0, k=k, workers=-1)
     if return_distance:
         return nn_inds, dists
     else:
@@ -62,7 +71,7 @@ def find_knn_gpu(F0, F1, k, nn_max_n=-1, return_distance=False, dist_type="Squar
     # Too much memory if F0 or F1 large. Divide the F0
     if nn_max_n > 1:
         N = len(F0)
-        C = int(np.ceil(N / nn_max_n))
+        C = int(np.floor(N / nn_max_n))
         stride = nn_max_n
         dists, inds = [], []
         for i in range(C):
@@ -85,7 +94,7 @@ def find_knn_gpu(F0, F1, k, nn_max_n=-1, return_distance=False, dist_type="Squar
     else:
         dist = pdist(F0, F1, dist_type=dist_type)
         # min_dist, inds = dist.min(dim=1)
-        min_dist, ind = dist.topk(k=k, dim=1, largest=False)
+        min_dist, inds = dist.topk(k=k, dim=1, largest=False)
         dists = min_dist.reshape((-1,)).detach().unsqueeze(1).cpu()
         inds = inds.reshape((-1,)).cpu()
     if return_distance:
