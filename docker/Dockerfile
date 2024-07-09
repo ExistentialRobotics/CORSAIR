@@ -8,12 +8,15 @@ ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
 RUN DEBIAN_FRONTEND=noninteractive apt-get update && apt upgrade -y && \
     apt-get install -y \
     sudo \
+    xauth \
     git \
     python3 \
     python3-pip \
     python3-dev \
     libopenblas-dev \
     build-essential \
+    cmake \
+    vim \
     xorg-dev \
     libxcb-shm0 \
     libglu1-mesa-dev \
@@ -58,7 +61,7 @@ RUN cd deps/MinkowskiEngine && rm requirements.txt && export TORCH_CUDA_ARCH_LIS
     python3 setup.py install --user --verbose --blas=openblas --force_cuda --cuda_home=/usr/local/cuda
 
 RUN pip3 uninstall -y open3d && cd /home/user && git clone --recursive https://github.com/isl-org/Open3D && \
-    cd Open3D && git checkout 160209d055214a199719559d7e65fcecd14960ce && bash utils/install_deps_ubuntu.sh && \
+    cd Open3D && git checkout 160209d055214a199719559d7e65fcecd14960ce && \
     mkdir build && cd build && cmake .. -DUSE_SYSTEM_PYBIND11=ON && make install-pip-package -j$(nproc) && \
     cd /home/user && rm -rf Open3D
 

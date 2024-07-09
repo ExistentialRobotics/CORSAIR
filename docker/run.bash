@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 
-xhost +si:localuser:user
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+#xhost +si:localuser:user
+xhost +
 
 docker run --rm -it \
   -v /dev/shm:/dev/shm:rw \
@@ -10,8 +12,10 @@ docker run --rm -it \
   -v /var/run/docker.sock:/var/run/docker.sock:rw \
   -v /dev/bus:/dev/bus:rw \
   -v /dev/serial:/dev/serial:rw \
+  -v /dev:/dev:rw \
   --net=host \
-  -e DISPLAY \
+  -e DISPLAY=$DISPLAY \
   -v $HOME/.Xauthority:/home/user/.Xauthority:rw \
+  -v $SCRIPT_DIR/..:/home/user/CORSAIR/host:rw \
   --name corsair \
   erl/corsair
