@@ -19,6 +19,14 @@ the paper [CORSAIR: Convolutional Object Retrieval and Symmetry-AIded Registrati
 
 # Setup
 
+## Docker Environment
+```shell
+git clone --recursive --branch main https://github.com/ExistentialRobotics/CORSAIR.git
+cd CORSAIR/docker
+./build.bash # builds the docker image
+./run.bash #runs the docker image
+```
+
 ## Python Environment
 
 ```shell
