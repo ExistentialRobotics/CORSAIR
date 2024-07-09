@@ -21,9 +21,9 @@ RUN git clone --recursive https://github.com/ExistentialRobotics/CORSAIR
 WORKDIR /home/user/CORSAIR
 ENV PATH="/home/user/.local/bin:${PATH}"
 RUN pipenv install --verbose
-RUN pipenv shell && cd deps/MinkowskiEngine && pip install . --verbose
+#RUN pipenv shell && cd deps/MinkowskiEngine && pip install . --verbose
 
-COPY --chown=user:user data/ShapeNetCore.v2.PC15k /home/user/data/ShapeNetCore.v2.PC15k
-COPY entrypoint.bash /home/user/CORSAIR/entrypoint.bash
+#COPY --chown=user:user data/ShapeNetCore.v2.PC15k /home/user/data/ShapeNetCore.v2.PC15k
+#COPY entrypoint.bash /home/user/CORSAIR/entrypoint.bash
 
-ENTRYPOINT ["/home/user/CORSAIR/entrypoint.bash"]
+#ENTRYPOINT ["/home/user/CORSAIR/entrypoint.bash"]

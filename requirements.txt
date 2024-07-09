@@ -1,0 +1,9 @@
+open3d
+numpy
+torch
+torchvision
+tqdm
+vedo
+transforms3d
+joblib
+gdown
