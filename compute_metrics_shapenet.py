@@ -8,7 +8,7 @@ def main():
     parser.add_argument("--categories", type=str, nargs="+", required=True)
     parser.add_argument("--n-models", type=int, default=100)
     parser.add_argument("--n-poses-per-model", type=int, default=1)
-    parser.add_argument("--random-seed", type=int, default=100)
+    parser.add_argument("--random-seed", type=int, default=0)
     args = parser.parse_args()
 
     table = pd.DataFrame(
