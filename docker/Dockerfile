@@ -1,9 +1,9 @@
 FROM nvidia/cuda:12.1.0-cudnn8-devel-ubuntu22.04
 
-# https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/user-guide.html#dockerfiles
+# https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/1.15.0/docker-specialized.html?highlight=nvidia_driver_capabilities
 # With these variables you don't have to run the final image with the --gpus argument.
 ENV NVIDIA_VISIBLE_DEVICES=all
-ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
+ENV NVIDIA_DRIVER_CAPABILITIES=all
 
 RUN DEBIAN_FRONTEND=noninteractive apt-get update && apt upgrade -y && \
     apt-get install -y \
@@ -68,4 +68,6 @@ RUN pip3 uninstall -y open3d && cd /home/user && git clone --recursive https://g
 COPY --chown=user:user data/ShapeNetCore.v2.PC15k /home/user/CORSAIR/data/ShapeNetCore.v2.PC15k
 COPY --chown=user:user entrypoint_chair.bash /home/user/CORSAIR/entrypoint_chair.bash
 RUN chmod +x /home/user/CORSAIR/entrypoint_chair.bash
+COPY --chown=user:user entrypoint_table.bash /home/user/CORSAIR/entrypoint_table.bash
+RUN chmod +x /home/user/CORSAIR/entrypoint_table.bash
 ENTRYPOINT ["/home/user/CORSAIR/entrypoint_chair.bash"]

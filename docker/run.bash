@@ -4,9 +4,10 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 #xhost +si:localuser:user
 xhost +
 
+ENTRYPOINT?=/home/user/CORSAIR/entrypoint_chair.bash  # or entrypoint_table.bash
 docker run --rm -it \
+  --runtime=nvidia \
   --gpus all \
-  -e NVIDIA_DRIVER_CAPABILITIES=compute,graphics \
   -v /dev/shm:/dev/shm:rw \
   -v /dev/char:/dev/char:rw \
   -v /tmp/.X11-unix:/tmp/.X11-unix \
@@ -20,4 +21,5 @@ docker run --rm -it \
   -v $HOME/.Xauthority:/home/user/.Xauthority:rw \
   -v $SCRIPT_DIR/..:/home/user/CORSAIR/host:rw \
   --name corsair \
+  --entrypoint $ENTRYPOINT \
   erl/corsair

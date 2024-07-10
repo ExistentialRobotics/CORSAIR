@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
+set -x
 cd /home/user/CORSAIR
 git pull
 export OMP_NUM_THREADS=`nproc`
@@ -18,7 +19,7 @@ python3 evaluation-shapenet.py \
 cp results-shapenet-seed$SEED-$CATEGORY-$N_MODELS-$N_POSES_PER_MODEL.csv host
 cp poses-shapenet-seed$SEED-$CATEGORY-$N_MODELS-$N_POSES_PER_MODEL.npz host
 python3 compute_metrics_shapenet.py \
-    --category $CATEGORY \
+    --categories $CATEGORY \
     --n-models $N_MODELS \
     --n-poses-per-model $N_POSES_PER_MODEL \
     --random-seed $SEED

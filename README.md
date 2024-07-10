@@ -2,7 +2,8 @@ CORSAIR
 =======
 
 Code repository for
-the paper [CORSAIR: Convolutional Object Retrieval and Symmetry-AIded Registration](https://ieeexplore.ieee.org/document/9636347).
+the
+paper [CORSAIR: Convolutional Object Retrieval and Symmetry-AIded Registration](https://ieeexplore.ieee.org/document/9636347).
 
 # Cite
 
@@ -20,11 +21,18 @@ the paper [CORSAIR: Convolutional Object Retrieval and Symmetry-AIded Registrati
 # Setup
 
 ## Docker Environment
+
 ```shell
 git clone --recursive --branch main https://github.com/ExistentialRobotics/CORSAIR.git
 cd CORSAIR/docker
+
+# install docker and nvidia-container-toolkit if not installed
+./install_docker_ubuntu.bash 
+reboot # reboot the system to apply the changes
+
 ./build.bash # builds the docker image
-./run.bash #runs the docker image
+./run.bash #runs the docker image for category chair by default
+ENTRYPOINT="/home/user/CORSAIR/entrypoint_table.bash" ./run.bash #runs the docker image for category table
 ```
 
 ## Python Environment
@@ -36,6 +44,23 @@ pipenv sync --verbose
 pipenv shell
 cd deps/MinkowskiEngine  # 0.5.5
 pip install . --verbose
+```
+
+### Troubleshooting: mismatched CUDA version
+
+The `PyTorch` and `CUDA` versions should match otherwise the installation of `MinkowskiEngine` will fail. To install
+older versions of `CUDA` compatible with `PyTorch`, here is an example showing how to install `CUDA 12.1`
+for `PyTorch 2.3` on `Arch Linux`:
+```shell
+wget https://developer.download.nvidia.com/compute/cuda/12.1.0/local_installers/cuda_12.1.0_530.30.02_linux.run
+chmod +x cuda_12.1.0_530.30.02_linux.run
+sudo ./cuda_12.1.0_530.30.02_linux.run --toolkitpath=/opt/cuda-12.1 --toolkit --override
+paru -S gcc12 gcc12-libs  # Max GCC version supported by CUDA 12.1
+```
+
+Then, install `MinokowskiEngine` with the following command:
+```shell
+CC=gcc-12 CXX=g++-12 CUDA_HOME=/opt/cuda-12.1 pip install . --verbose
 ```
 
 ## Demo Data
@@ -87,7 +112,8 @@ will evaluate the model on the chair category and register the ground-truth CAD 
 - Press Left/Right to navigate through the results.
 - Drag the mouse to rotate the object.
 
-**Note: the `Predicted Closest CAD PC` may not align with the query point cloud well when the matching point cloud is not the ground truth.**
+**Note: the `Predicted Closest CAD PC` may not align with the query point cloud well when the matching point cloud is
+not the ground truth.**
 
 # Metrics
 
@@ -200,6 +226,8 @@ retrieval, please run the `evalution-shapenet.py` script. e.g.
 python evaluation-shapenet.py --shapenet-root ./Data/ShapeNetCore.v2.PC15k --category chair --model-ckpt ckpts/scannet_ret_chair --n-models 100             
 python evaluation-shapenet.py --shapenet-root ./Data/ShapeNetCore.v2.PC15k --category table --model-ckpt ckpts/scannet_pose_table_best --n-models 100
 ```
+
+The numbers vary slightly due to the unpredictable parallelism behavior of the `Open3D` `RANSAC` algorithm.
 
 |       Checkpoint        | Sym. | RRE $\le 5^\circ$ | RRE $\le 15^\circ$ | RRE $\le 45^\circ$ | RTE $\le 0.02$ | RTE $\le 0.05$ | RTE $\le 0.10$ | RTE $\le 0.15$ |
 |:-----------------------:|:----:|:-----------------:|:------------------:|:------------------:|:--------------:|:--------------:|:--------------:|:--------------:|
