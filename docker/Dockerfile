@@ -57,7 +57,7 @@ WORKDIR /home/user/CORSAIR
 ENV PATH="/home/user/.local/bin:${PATH}"
 RUN pip3 install --upgrade pip
 RUN pip3 install -r requirements.txt --user --verbose
-RUN cd deps/MinkowskiEngine && rm requirements.txt && export TORCH_CUDA_ARCH_LIST="7.0 7.5 8.0 8.6 8.9" && \
+RUN cd deps/MinkowskiEngine && rm requirements.txt && export TORCH_CUDA_ARCH_LIST="6.1 7.0 7.5 8.0 8.6 8.9" && \
     python3 setup.py install --user --verbose --blas=openblas --force_cuda --cuda_home=/usr/local/cuda
 
 RUN pip3 uninstall -y open3d && cd /home/user && git clone --recursive https://github.com/isl-org/Open3D && \
