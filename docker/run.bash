@@ -5,6 +5,8 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 xhost +
 
 docker run --rm -it \
+  --gpus all \
+  -e NVIDIA_DRIVER_CAPABILITIES=compute,graphics \
   -v /dev/shm:/dev/shm:rw \
   -v /dev/char:/dev/char:rw \
   -v /tmp/.X11-unix:/tmp/.X11-unix \
