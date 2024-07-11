@@ -4,7 +4,7 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 #xhost +si:localuser:user
 xhost +
 
-ENTRYPOINT?=/home/user/CORSAIR/entrypoint_chair.bash  # or entrypoint_table.bash
+ENTRYPOINT=${ENTRYPOINT:=/home/user/CORSAIR/entrypoint_chair.bash}  # or entrypoint_table.bash
 docker run --rm -it \
   --runtime=nvidia \
   --gpus all \

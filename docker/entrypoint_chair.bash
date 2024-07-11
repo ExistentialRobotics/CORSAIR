@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 set -x
+set -e
 cd /home/user/CORSAIR
 git pull
 export OMP_NUM_THREADS=`nproc`

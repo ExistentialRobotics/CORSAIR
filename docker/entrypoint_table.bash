@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 set -x
+set -e
 cd /home/user/CORSAIR
 git pull
 export OMP_NUM_THREADS=`nproc`
@@ -12,7 +13,7 @@ SEED=0
 python3 evaluation-shapenet.py \
     --shapenet-root ./data/ShapeNetCore.v2.PC15k \
     --category $CATEGORY \
-    --model-ckpt ckpts/$CKPT \
+    --model-ckpt $CKPT \
     --n-models $N_MODELS \
     --n-poses-per-model $N_POSES_PER_MODEL \
     --random-seed $SEED
