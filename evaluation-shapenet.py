@@ -213,8 +213,12 @@ class App:
         rte_002_ransac = (self.df["rte_ransac"] <= 0.02).sum() / len(self.df)
         rre_05_sym = (self.df["rre_sym"] <= np.deg2rad(5)).sum() / len(self.df)
         rre_05_ransac = (self.df["rre_ransac"] <= np.deg2rad(5)).sum() / len(self.df)
+        rte_002_rre_05_sym = ( (self.df["rte_sym"] <= 0.02) & (self.df["rre_sym"] <= np.deg2rad(5)) ).sum() / len(self.df)
+        rte_002_rre_05_ransac = ( (self.df["rte_ransac"] <= 0.02) & (self.df["rre_ransac"] <= np.deg2rad(5)) ).sum() / len(self.df)
+
         tqdm.write(f"RTE <= 0.02: sym: {rte_002_sym:.4f}, ransac: {rte_002_ransac:.4f}")
         tqdm.write(f"RRE <= 5 deg: sym: {rre_05_sym:.4f}, ransac: {rre_05_ransac:.4f}")
+        tqdm.write(f"RTE <= 0.02 & RRE <= 5 deg: sym: {rte_002_rre_05_sym:.4f}, ransac: {rte_002_rre_05_ransac:.4f}")
 
         # Visualize Results
         self._init_gui()
