@@ -235,3 +235,8 @@ The numbers vary slightly due to the unpredictable parallelism behavior of the `
 |    scannet_ret_chair    |  Y   |      **93%**      |      **100%**      |      **100%**      |    **64%**     |    **97%**     |    **100%**    |    **100%**    |
 | scannet_pose_table_best |  N   |        84%        |      **99%**       |      **99%**       |      32%       |      88%       |    **100%**    |      100%      |
 | scannet_pose_table_best |  Y   |      **92%**      |        98%         |        98%         |    **69%**     |    **95%**     |      99%       |    **100%**    |
+
+
+# Acknowledgements
+
+We gratefully acknowledge support from ARL DCIST CRA W911NF17-2-0181 and ONR SAI N00014-18-1-2828 and the Technology Innovation Program (20018112, Development of autonomous manipulation and gripping technology using imitation learning based on visual and tactile sensing) funded by the Ministry of Trade, Industry & Energy (MOTIE), Korea.
