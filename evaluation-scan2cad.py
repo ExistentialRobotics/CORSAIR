@@ -17,12 +17,12 @@ from model import load_model
 from utils.Info.CADLib import CustomizeCADLib
 from utils.Info.Scan2cadInfo import Scan2cadInfo
 from utils.eval_pose import eval_pose
-from utils.logger import logger
+from utils.logger import Logger as logger
 from utils.retrieval import scan2cad_retrieval_eval
 from utils.symmetry import sym_pose
 from utils.visualization import embed_tsne
 from utils.visualization import get_color_map
-from utils.preprocess import load_norm_pc, normalize_pc, apply_transform, load_raw_pc, chamfer_kdtree_1direction
+from utils.preprocess import load_norm_pc, apply_transform, load_raw_pc, chamfer_kdtree_1direction
 import open3d as o3d
 
 @dataclass
@@ -30,6 +30,7 @@ class Config:
     shapenet_pc15k_root: str
     scan2cad_pc_root: str
     scan2cad_annotation_root: str
+    shapenet_radegs_root: str
     category: str
     checkpoint: str
     catid: str = None
@@ -66,6 +67,12 @@ class App:
             type=str,
             default="/mnt/data/Scan2CAD_pc",
             help="Path to Scan2CAD",
+        )
+        parser.add_argument(
+            "--shapenet-radegs-root",
+            type=str,
+            default="/mnt/data/RaDe-GS",
+            help="Path to RaDe-GS ply files for ShapeNet",
         )
         parser.add_argument(
             "--scan2cad-annotation-root",
@@ -128,7 +135,7 @@ class App:
             root=self.config.shapenet_pc15k_root,
             catid=self.config.catid,
             ids=self.scan2cad_info.UsedObjId,
-            table_path=os.path.join(script_dir, "config", f"{self.config.catid}_scan2cad.npy"),
+            table_path=os.path.join(script_dir, "configs", f"{self.config.catid}_scan2cad.npy"),
             voxel_size=self.config.voxel_size,
             preload=False,
         )
@@ -164,7 +171,7 @@ class App:
             collate_fn=self.dataset.collate_pair_fn,
         )
 
-        with open(os.path.join(script_dir, "config", f"{self.config.catid}_scan2cad_rot_sym_label.txt"), "r") as f:
+        with open(os.path.join(script_dir, "configs", f"{self.config.catid}_scan2cad_rot_sym_label.txt"), "r") as f:
             lines = f.readlines()
             # names = [line.strip("\n").split(" ")[0] for line in lines]
             self.sym_label = [int(line.strip("\n").split(" ")[1]) for line in lines]
@@ -283,7 +290,7 @@ class App:
             [0, 0, 0, 1]
         ])
 
-        chamfer_dist_list = []
+        self.chamfer_dist_list = []
 
         for i in tqdm(range(len(self.base_origins)), ncols=80):
             tqdm.write(f"Processing {i}th query")
@@ -296,8 +303,8 @@ class App:
             retrieved_modelID = self.CADLib_idx2id[retrieved_idx]
 
             # get corresponding Gaussian splat and reconstruct point cloud
-            gsplat_root = "/mnt/data/RaDe-GS"
-            gsplat_recon_path = os.path.join(gsplat_root, self.config.catid, retrieved_modelID, "recon.ply")
+            # gsplat_root = "/mnt/data/RaDe-GS"
+            gsplat_recon_path = os.path.join(self.config.shapenet_radegs_root, self.config.catid, retrieved_modelID, "recon.ply")
             retrieved_gsplat_recon_mesh = o3d.io.read_triangle_mesh(gsplat_recon_path)
             retrieved_gsplat_recon_pcd = retrieved_gsplat_recon_mesh.sample_points_uniformly(number_of_points=15000)
             retrieved_gsplat_xyz = apply_transform(np.asarray(retrieved_gsplat_recon_pcd.points), fixed_transform_gsplat)
@@ -306,9 +313,9 @@ class App:
             chamfer_dist = chamfer_kdtree_1direction(align_cad_xyz, retrieved_gsplat_xyz) + \
                             chamfer_kdtree_1direction(retrieved_gsplat_xyz, align_cad_xyz)
             tqdm.write(f"CD: {chamfer_dist}")
-            chamfer_dist_list.append(chamfer_dist)
+            self.chamfer_dist_list.append(chamfer_dist)
         
-        self.logger.log(f"average chamfer distance (GT CAD vs RaDe-GS reconstructed PCD): {np.mean(chamfer_dist_list)}")
+        self.logger.log(f"average chamfer distance (GT CAD vs RaDe-GS reconstructed PCD): {np.mean(self.chamfer_dist_list)}")
 
 if __name__ == "__main__":
-    App()
+    app = App()
