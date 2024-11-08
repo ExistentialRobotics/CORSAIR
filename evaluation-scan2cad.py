@@ -14,7 +14,7 @@ from datasets.ScannetDataset import ScannetDataset
 from datasets.ScannetTestTimeDataset import ScannetTestTimeDataset
 from model import fc
 from model import load_model
-from utils.Info.CADLib import CustomizeCADLib
+from utils.Info.CADLib import CustomizeCADLib, GaussianSplatLib
 from utils.Info.Scan2cadInfo import Scan2cadInfo
 from utils.eval_pose import eval_pose
 from utils.logger import Logger as logger
@@ -155,6 +155,11 @@ class App:
 
         self.dataset.pos_n = 1  # ask the dataset to load the ground truth best match
 
+        self.gsplat_lib = GaussianSplatLib(
+            self.config.shapenet_radegs_root,
+            self.config.catid
+        )
+
         self.cad_lib_loader = DataLoader(
             self.cad_lib,
             batch_size=32,
@@ -281,33 +286,29 @@ class App:
         self.logger.log(f"top1_error: {self.stat['top1_error']}")
         self.logger.log(f"precision: {self.stat['precision']}")
 
-        self.CADLib_idx2id = {v: k for k, v in self.cad_lib.id2idx.items()}
+        # self.CADLib_idx2id = {v: k for k, v in self.cad_lib.id2idx.items()}
 
-        fixed_transform_gsplat = np.array([
-            [1, 0, 0, 0],
-            [0, 0, 1, 0],
-            [0, -1, 0, 0],
-            [0, 0, 0, 1]
-        ])
+        # fixed_transform_gsplat = np.array([
+        #     [1, 0, 0, 0],
+        #     [0, 0, 1, 0],
+        #     [0, -1, 0, 0],
+        #     [0, 0, 0, 1]
+        # ])
 
         self.chamfer_dist_list = []
 
         for i in tqdm(range(len(self.base_origins)), ncols=80):
-            tqdm.write(f"Processing {i}th query")
-
             # grount truth point cloud
-            align_cad_xyz = load_raw_pc(self.cad_lib.CadPcs[self.cad_lib.id2idx[self.dataset.BestMatches[i]]], 15000)
+            align_cad_xyz = self.cad_lib._getpc_raw_id(
+                self.dataset.BestMatches[i]
+            )
 
             # get retrieved object ID
             retrieved_idx = self.stat['top1_predict'][i]
-            retrieved_modelID = self.CADLib_idx2id[retrieved_idx]
+            retrieved_model_id = self.cad_lib.ids[retrieved_idx]
 
             # get corresponding Gaussian splat and reconstruct point cloud
-            # gsplat_root = "/mnt/data/RaDe-GS"
-            gsplat_recon_path = os.path.join(self.config.shapenet_radegs_root, self.config.catid, retrieved_modelID, "recon.ply")
-            retrieved_gsplat_recon_mesh = o3d.io.read_triangle_mesh(gsplat_recon_path)
-            retrieved_gsplat_recon_pcd = retrieved_gsplat_recon_mesh.sample_points_uniformly(number_of_points=15000)
-            retrieved_gsplat_xyz = apply_transform(np.asarray(retrieved_gsplat_recon_pcd.points), fixed_transform_gsplat)
+            retrieved_gsplat_xyz = self.gsplat_lib.get_recon_pc_by_id_transformed(retrieved_model_id)
 
             # compute Chamfer distance
             chamfer_dist = chamfer_kdtree_1direction(align_cad_xyz, retrieved_gsplat_xyz) + \

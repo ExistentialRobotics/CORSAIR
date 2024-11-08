@@ -16,7 +16,7 @@
 
 from sklearn.metrics import average_precision_score
 from sklearn.metrics import roc_auc_score
-from scipy.spatial.distance import pdist, squareform
+from scipy.spatial.distance import pdist, squareform, cdist
 import numpy as np
 
 
@@ -172,6 +172,6 @@ def scan2cad_retrieval_eval(scan_feats, lib_feats, best_match, table, pos_n):
     Scan2cad retrieval using descriptors
     """
 
-    dists = np.linalg.norm(scan_feats[:, None, :] - lib_feats[None, :, :], ord=2, axis=2)
-
+    dists = cdist(scan_feats, lib_feats)
+    
     return scan2cad_retrieval_eval_dist(dists, table, best_match, pos_n)

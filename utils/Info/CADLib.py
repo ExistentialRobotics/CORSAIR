@@ -5,8 +5,9 @@ import MinkowskiEngine as ME
 
 from datasets.Reader import CategoryLibReader, ReaderWithPath
 
-from utils.preprocess import path_dict, load_norm_pc
-
+from utils.preprocess import path_dict, load_norm_pc, apply_transform, load_raw_pc
+import os
+import open3d as o3d
 
 class CatCADLib:
     """
@@ -92,6 +93,15 @@ class CustomizeCADLib(torch.utils.data.Dataset):
         else:
             return load_norm_pc(self.CadPcs[idx], 10000)
 
+    def _getpc_raw(self, idx):
+        if self.preload:
+            return self.CadPcs[idx]
+        else:
+            return load_raw_pc(self.CadPcs[idx], 15000)
+
+    def _getpc_raw_id(self, model_id):
+        return self._getpc_raw(self.id2idx[model_id])
+
     def quant(self, rot_coords, coords):
         if ME.__version__ >= "0.5.4":
             unique_idx = ME.utils.sparse_quantize(
@@ -165,3 +175,43 @@ class CustomizeCADLib(torch.utils.data.Dataset):
         data["base_T"] = torch.stack(base_T, 0).float()
 
         return data
+
+class GaussianSplatLib:
+    def __init__(
+        self,
+        shapenet_radegs_root,
+        catid
+    ):
+        self.catid = catid
+        self.shapenet_radegs_root = shapenet_radegs_root
+        self.fixed_transform_gsplat = np.array([
+            [1, 0, 0, 0],
+            [0, 0, 1, 0],
+            [0, -1, 0, 0],
+            [0, 0, 0, 1]
+        ]) # needed because gsplat is in different coordinate frame than shapenet
+
+    def get_recon_mesh_by_id(self, model_id):
+        gsplat_recon_path = os.path.join(
+            self.shapenet_radegs_root,
+            self.catid,
+            model_id,
+            "recon.ply"
+        )
+        return o3d.io.read_triangle_mesh(gsplat_recon_path)
+
+    def get_recon_pc_by_id(self, model_id, number_of_points=15000):
+        return self.get_recon_mesh_by_id(model_id).sample_points_uniformly(
+            number_of_points = number_of_points
+        )
+    
+    def get_recon_pc_by_id_transformed(self, model_id, number_of_points=15000):
+        return apply_transform(
+            np.asarray(
+                self.get_recon_pc_by_id(
+                    model_id, 
+                    number_of_points=number_of_points
+                ).points
+            ),
+            self.fixed_transform_gsplat
+        )
