@@ -308,7 +308,9 @@ class App:
         # ])
 
         self.chamfer_dist_list = []
-        chamfer_dist_cache_pd = pd.read_csv('chamfer_dist_list.csv')
+        chamfer_dist_cache_pd = pd.read_csv(
+            os.path.join(script_dir, "configs", f"chamfer_dist_list.csv")
+        )
         self._chamfer_dist_cache = chamfer_dist_cache_pd['chamfer_dist'].to_numpy().reshape(
             (len(self.scan2cad_info.UsedObjId), len(self.scan2cad_info.UsedObjId))
         )
@@ -326,45 +328,12 @@ class App:
             ])] for scene_idx in range(len(self.best_matches_idx))
         ])
         # self.retrieved_object_idx_orig = np.argmin(self.feature_dist, axis=-1)
-        self.chamfer_dist_list_cache = np.array(
-            [
-                self._chamfer_dist_cache[
-                    self.best_matches_idx[scene_idx], 
-                    self.retrieved_object_idx[scene_idx]
-                ] for scene_idx in range(len(self.best_matches_idx))
-            ]
-        )
 
         self.chamfer_dist_list = thread_map(
             self.evaluate_retrieval, 
             zip(self.dataset.BestMatches, self.retrieved_object_idx.tolist()),
             max_workers=16
         )
-
-        # for i in tqdm(range(len(self.base_origins)), ncols=80):
-        #     # grount truth point cloud
-        #     align_cad_xyz = self.cad_lib._getpc_raw_id(
-        #         self.dataset.BestMatches[i]
-        #     )
-
-        #     # get retrieved object ID
-        #     retrieved_model_id = self.cad_lib.ids[self.retrieved_object_idx[i]]
-
-        #     # get corresponding Gaussian splat and reconstruct point cloud
-        #     retrieved_gsplat_xyz = self.gsplat_lib.get_recon_pc_by_id_transformed(retrieved_model_id)
-
-        #     # compute Chamfer distance
-        #     chamfer_dist = chamfer_kdtree_1direction(align_cad_xyz, retrieved_gsplat_xyz) + \
-        #                     chamfer_kdtree_1direction(retrieved_gsplat_xyz, align_cad_xyz)
-
-        #     chamfer_dist_cached = self._chamfer_dist_cache[
-        #         self.cad_lib.id2idx[self.dataset.BestMatches[i]],
-        #         retrieved_idx
-        #     ]
-
-
-        #     tqdm.write(f"CD: {chamfer_dist}")
-        #     self.chamfer_dist_list.append(chamfer_dist)
         
         self.logger.log(f"average chamfer distance (GT CAD vs RaDe-GS reconstructed PCD): {np.mean(self.chamfer_dist_list)}")
 
