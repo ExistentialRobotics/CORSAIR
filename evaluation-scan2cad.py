@@ -26,6 +26,7 @@ from utils.preprocess import load_norm_pc, apply_transform, load_raw_pc, chamfer
 import open3d as o3d
 import pandas as pd
 from scipy.spatial.distance import cdist
+from tqdm.contrib.concurrent import thread_map
 
 @dataclass
 class Config:
@@ -325,13 +326,19 @@ class App:
             ])] for scene_idx in range(len(self.best_matches_idx))
         ])
         # self.retrieved_object_idx_orig = np.argmin(self.feature_dist, axis=-1)
-        self.chamfer_dist_list = np.array(
+        self.chamfer_dist_list_cache = np.array(
             [
                 self._chamfer_dist_cache[
                     self.best_matches_idx[scene_idx], 
                     self.retrieved_object_idx[scene_idx]
                 ] for scene_idx in range(len(self.best_matches_idx))
             ]
+        )
+
+        self.chamfer_dist_list = thread_map(
+            self.evaluate_retrieval, 
+            zip(self.dataset.BestMatches, self.retrieved_object_idx.tolist()),
+            max_workers=16
         )
 
         # for i in tqdm(range(len(self.base_origins)), ncols=80):
@@ -362,7 +369,8 @@ class App:
         self.logger.log(f"average chamfer distance (GT CAD vs RaDe-GS reconstructed PCD): {np.mean(self.chamfer_dist_list)}")
 
     def evaluate_retrieval(self, arg):
-        ground_truth_id, retrieved_model_id = arg
+        ground_truth_id, retrieved_model_idx = arg
+        retrieved_model_id = self.cad_lib.ids[retrieved_model_idx]
 
         align_cad_xyz = self.cad_lib._getpc_raw_id(
             ground_truth_id

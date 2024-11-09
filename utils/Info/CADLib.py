@@ -59,6 +59,7 @@ class CustomizeCADLib(torch.utils.data.Dataset):
         self.id2path = path_dict(self.root)
         self.id2idx = {}
         self.table = np.load(table_path)
+        self.scale = 1E-3
 
         """
         # select needed cad models distance function
@@ -97,7 +98,7 @@ class CustomizeCADLib(torch.utils.data.Dataset):
         if self.preload:
             return self.CadPcs[idx]
         else:
-            return load_raw_pc(self.CadPcs[idx], 15000)
+            return self.scale * load_raw_pc(self.CadPcs[idx], 15000)
 
     def _getpc_raw_id(self, model_id):
         return self._getpc_raw(self.id2idx[model_id])
@@ -190,6 +191,7 @@ class GaussianSplatLib:
             [0, -1, 0, 0],
             [0, 0, 0, 1]
         ]) # needed because gsplat is in different coordinate frame than shapenet
+        self.scale = 1E-3
 
     def get_recon_mesh_by_id(self, model_id):
         gsplat_recon_path = os.path.join(
@@ -206,7 +208,7 @@ class GaussianSplatLib:
         )
     
     def get_recon_pc_by_id_transformed(self, model_id, number_of_points=15000):
-        return apply_transform(
+        return self.scale * apply_transform(
             np.asarray(
                 self.get_recon_pc_by_id(
                     model_id, 
