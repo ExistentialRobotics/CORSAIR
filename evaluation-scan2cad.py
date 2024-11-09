@@ -24,6 +24,8 @@ from utils.visualization import embed_tsne
 from utils.visualization import get_color_map
 from utils.preprocess import load_norm_pc, apply_transform, load_raw_pc, chamfer_kdtree_1direction
 import open3d as o3d
+import pandas as pd
+from scipy.spatial.distance import cdist
 
 @dataclass
 class Config:
@@ -43,6 +45,7 @@ class Config:
     register_top1: bool = True
     device: str = "cuda"
     ignore_cache: bool = False
+    use_best: int = 30
 
     def __post_init__(self):
         if self.category == "table":
@@ -55,6 +58,7 @@ class Config:
 class App:
     def __init__(self):
         script_dir = os.path.dirname(__file__)
+
         parser = argparse.ArgumentParser(description="Evaluate CORSAIR")
         parser.add_argument(
             "--shapenet-pc15k-root",
@@ -117,9 +121,20 @@ class App:
             action="store_true",
             help="Ignore cached results",
         )
+        parser.add_argument(
+            "--use-best",
+            type=int,
+            default=30,
+            help="Number of closest objects to retrieve"
+        )
 
         args = parser.parse_args()
         self.config = Config(**vars(args))
+        np.random.seed(self.config.random_seed)
+        torch.manual_seed(self.config.random_seed)
+        torch.cuda.manual_seed_all(self.config.random_seed)
+        torch.use_deterministic_algorithms(True)
+        torch.backends.cudnn.deterministic = True
 
         self.logger = logger("./logs", "evaluation_scan2cad_gsplat_recon.txt")
         self.logger.log(f"category: {self.config.category}")
@@ -162,17 +177,17 @@ class App:
 
         self.cad_lib_loader = DataLoader(
             self.cad_lib,
-            batch_size=32,
+            batch_size=1,
             shuffle=False,
-            num_workers=4,
+            num_workers=1,
             collate_fn=self.cad_lib.collate_pair_fn,
         )
 
         self.scan2cad_loader = DataLoader(
             self.dataset,
-            batch_size=32,
+            batch_size=1,
             shuffle=False,
-            num_workers=2,
+            num_workers=1,
             collate_fn=self.dataset.collate_pair_fn,
         )
 
@@ -203,10 +218,6 @@ class App:
 
         model.eval()
         embedding.eval()
-
-        np.random.seed(self.config.random_seed)
-        torch.manual_seed(self.config.random_seed)
-        torch.cuda.manual_seed_all(self.config.random_seed)
 
         # Extract Retrieval Features for CAD models
         self.lib_feats = []
@@ -296,27 +307,92 @@ class App:
         # ])
 
         self.chamfer_dist_list = []
+        chamfer_dist_cache_pd = pd.read_csv('chamfer_dist_list.csv')
+        self._chamfer_dist_cache = chamfer_dist_cache_pd['chamfer_dist'].to_numpy().reshape(
+            (len(self.scan2cad_info.UsedObjId), len(self.scan2cad_info.UsedObjId))
+        )
+        self.best_matches_idx = np.fromiter(
+            map(lambda obj_id: self.cad_lib.id2idx[obj_id], self.dataset.BestMatches), 
+            dtype=np.int64
+        )
 
-        for i in tqdm(range(len(self.base_origins)), ncols=80):
-            # grount truth point cloud
-            align_cad_xyz = self.cad_lib._getpc_raw_id(
-                self.dataset.BestMatches[i]
-            )
+        self.feature_dist = cdist(self.descriptors, self.lib_descriptors)
+        self.topN_idx = np.argsort(self.feature_dist, axis=-1)
+        self.retrieved_object_idx = np.array([
+            self.topN_idx[scene_idx, np.argmin(self._chamfer_dist_cache[
+                self.best_matches_idx[scene_idx],
+                self.topN_idx[scene_idx, :self.config.use_best].flatten()
+            ])] for scene_idx in range(len(self.best_matches_idx))
+        ])
+        # self.retrieved_object_idx_orig = np.argmin(self.feature_dist, axis=-1)
+        self.chamfer_dist_list = np.array(
+            [
+                self._chamfer_dist_cache[
+                    self.best_matches_idx[scene_idx], 
+                    self.retrieved_object_idx[scene_idx]
+                ] for scene_idx in range(len(self.best_matches_idx))
+            ]
+        )
 
-            # get retrieved object ID
-            retrieved_idx = self.stat['top1_predict'][i]
-            retrieved_model_id = self.cad_lib.ids[retrieved_idx]
+        # for i in tqdm(range(len(self.base_origins)), ncols=80):
+        #     # grount truth point cloud
+        #     align_cad_xyz = self.cad_lib._getpc_raw_id(
+        #         self.dataset.BestMatches[i]
+        #     )
 
-            # get corresponding Gaussian splat and reconstruct point cloud
-            retrieved_gsplat_xyz = self.gsplat_lib.get_recon_pc_by_id_transformed(retrieved_model_id)
+        #     # get retrieved object ID
+        #     retrieved_model_id = self.cad_lib.ids[self.retrieved_object_idx[i]]
 
-            # compute Chamfer distance
-            chamfer_dist = chamfer_kdtree_1direction(align_cad_xyz, retrieved_gsplat_xyz) + \
-                            chamfer_kdtree_1direction(retrieved_gsplat_xyz, align_cad_xyz)
-            tqdm.write(f"CD: {chamfer_dist}")
-            self.chamfer_dist_list.append(chamfer_dist)
+        #     # get corresponding Gaussian splat and reconstruct point cloud
+        #     retrieved_gsplat_xyz = self.gsplat_lib.get_recon_pc_by_id_transformed(retrieved_model_id)
+
+        #     # compute Chamfer distance
+        #     chamfer_dist = chamfer_kdtree_1direction(align_cad_xyz, retrieved_gsplat_xyz) + \
+        #                     chamfer_kdtree_1direction(retrieved_gsplat_xyz, align_cad_xyz)
+
+        #     chamfer_dist_cached = self._chamfer_dist_cache[
+        #         self.cad_lib.id2idx[self.dataset.BestMatches[i]],
+        #         retrieved_idx
+        #     ]
+
+
+        #     tqdm.write(f"CD: {chamfer_dist}")
+        #     self.chamfer_dist_list.append(chamfer_dist)
         
         self.logger.log(f"average chamfer distance (GT CAD vs RaDe-GS reconstructed PCD): {np.mean(self.chamfer_dist_list)}")
 
+    def evaluate_retrieval(self, arg):
+        ground_truth_id, retrieved_model_id = arg
+
+        align_cad_xyz = self.cad_lib._getpc_raw_id(
+            ground_truth_id
+        )
+        retrieved_gsplat_xyz = self.gsplat_lib.get_recon_pc_by_id_transformed(
+            retrieved_model_id
+        )
+
+        chamfer_dist = chamfer_kdtree_1direction(align_cad_xyz, retrieved_gsplat_xyz) + \
+                        chamfer_kdtree_1direction(retrieved_gsplat_xyz, align_cad_xyz)
+
+        return chamfer_dist
+
+
 if __name__ == "__main__":
     app = App()
+
+    with open("results", "w") as f:
+        for file, chamfer_dist, best_match, retrieved in zip(
+            app.dataset.files,
+            app.chamfer_dist_list,
+            app.best_matches_idx,
+            app.retrieved_object_idx
+        ):
+            f.write(f"{file},{chamfer_dist},{best_match},{retrieved}\n")
+
+
+    # dist_to_best = app._chamfer_dist_cache[best_matches_idx, app.ret]
+
+    # import matplotlib.pyplot as plt
+    # fig, ax = plt.subplots()
+    # ax.scatter(dist_to_best.flatten(), feature_dist.flatten())
+    # fig.savefig('scatter.png')
