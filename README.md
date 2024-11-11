@@ -33,6 +33,7 @@ reboot # reboot the system to apply the changes
 ./build.bash # builds the docker image
 ./run.bash #runs the docker image for category chair by default
 ENTRYPOINT="/home/user/CORSAIR/entrypoint_table.bash" ./run.bash #runs the docker image for category table
+./run_shape.bash # Runs the docker image for shape estimation with Chamfer distance metric (KETI Metric 11)
 ```
 
 ## Python Environment
