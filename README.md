@@ -31,8 +31,20 @@ cd CORSAIR/docker
 reboot # reboot the system to apply the changes
 
 ./build.bash # builds the docker image
+```
+
+## Demos
+
+Two types of demos are available, for pose and shape estimation. For pose estimation, two categories are available, namely chair and table. For shape estimation, only chair is available. 
+
+Execute *one* of the commands below to run the demos.
+
+```shell
+# Pose estimation 
 ./run.bash #runs the docker image for category chair by default
 ENTRYPOINT="/home/user/CORSAIR/entrypoint_table.bash" ./run.bash #runs the docker image for category table
+
+# Shape estimation on chair
 ./run_shape.bash # Runs the docker image for shape estimation with Chamfer distance metric (KETI Metric 11)
 ```
 
