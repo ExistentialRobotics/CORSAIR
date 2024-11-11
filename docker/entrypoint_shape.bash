@@ -18,7 +18,7 @@ set -e
 cd /home/user/CORSAIR
 git pull
 export OMP_NUM_THREADS=`nproc`
-export CUBLAS_WORKSPACE_CONFIG=":4096:2"
+export CUBLAS_WORKSPACE_CONFIG=":4096:8"
 CATEGORY=chair
 CKPT=ckpts/scannet_ret_chair_best
 

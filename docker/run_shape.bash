@@ -23,7 +23,7 @@ docker create --name Scan2CAD_annotations erlospm/data:Scan2CAD_annotations
 docker create --name ShapeNet erlospm/data:ShapeNetCore.v2.PC15k
 docker create --name ShapeNet-RaDe-GS erlospm/data:ShapeNet-RaDe-GS
 
-ENTRYPOINT=${ENTRYPOINT:=/home/user/CORSAIR/entrypoint_chair.bash}  # or entrypoint_table.bash
+ENTRYPOINT=/bin/bash
 docker run --rm -it \
   --runtime=nvidia \
   --gpus all \
@@ -45,4 +45,5 @@ docker run --rm -it \
   -v $SCRIPT_DIR/..:/home/user/CORSAIR/host:rw \
   --name corsair \
   --entrypoint $ENTRYPOINT \
-  erl/corsair
+  erl/corsair \
+  /home/user/CORSAIR/host/docker/entrypoint_shape.bash 
