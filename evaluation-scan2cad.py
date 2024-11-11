@@ -338,9 +338,11 @@ class App:
         self.logger.log(f"average chamfer distance (GT CAD vs RaDe-GS reconstructed PCD): {np.mean(self.chamfer_dist_list)}")
 
     def evaluate_retrieval(self, arg):
+        # Inputs are ground truth model ID and retrieved model IDs
         ground_truth_id, retrieved_model_idx = arg
         retrieved_model_id = self.cad_lib.ids[retrieved_model_idx]
 
+        # Get the corresponding point clouds
         align_cad_xyz = self.cad_lib._getpc_raw_id(
             ground_truth_id
         )
@@ -348,6 +350,9 @@ class App:
             retrieved_model_id
         )
 
+        # Compute the Chamfer distance using a KDtree.
+        # In this implementation, a KDtree of the source point cloud is formed, 
+        # and is used to yield the closest distance(s) to the target pointcloud.
         chamfer_dist = chamfer_kdtree_1direction(align_cad_xyz, retrieved_gsplat_xyz) + \
                         chamfer_kdtree_1direction(retrieved_gsplat_xyz, align_cad_xyz)
 
