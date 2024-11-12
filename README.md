@@ -18,9 +18,7 @@ paper [CORSAIR: Convolutional Object Retrieval and Symmetry-AIded Registration](
 }
 ```
 
-# Setup
-
-## Docker Environment
+# Docker Environment
 
 ```shell
 git clone --recursive --branch main https://github.com/ExistentialRobotics/CORSAIR.git
@@ -33,20 +31,32 @@ reboot # reboot the system to apply the changes
 ./build.bash # builds the docker image
 ```
 
-## Demos
+## Pose Estimation Demos
 
-Two types of demos are available, for pose and shape estimation. For pose estimation, two categories are available, namely chair and table. For shape estimation, only chair is available. 
-
-Execute *one* of the commands below to run the demos.
+Install Docker, and build docker images following instructions from the previous section.
+For pose estimation, two categories are available, namely chair and table. Execute *one* of the commands below to run the demos.
 
 ```shell
+cd CORSAIR/docker
+
 # Pose estimation 
 ./run.bash #runs the docker image for category chair by default
 ENTRYPOINT="/home/user/CORSAIR/entrypoint_table.bash" ./run.bash #runs the docker image for category table
 
+```
+
+## Shape Estimation Demos
+
+Install Docker, and build docker images following instructions from the previous section.
+We demonstrate shape estimation on the chair category. Execute the command below to run the demo. 
+
+```shell
+cd CORSAIR/docker
 # Shape estimation on chair
 ./run_shape.bash # Runs the docker image for shape estimation with Chamfer distance metric (KETI Metric 11)
 ```
+
+# Installing from source
 
 ## Python Environment
 
