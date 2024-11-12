@@ -56,6 +56,13 @@ cd CORSAIR/docker
 ./run_shape.bash # Runs the docker image for shape estimation with Chamfer distance metric (KETI Metric 11)
 ```
 
+On the first run, the script will download the test data as Docker images, and mount those as volumes. 
+After running the demo, it may be necessary to clean up the data volumes. To do so:
+
+```shell
+docker volume prune
+```
+
 # Installing from source
 
 ## Python Environment
