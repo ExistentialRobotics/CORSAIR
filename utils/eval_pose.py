@@ -37,7 +37,6 @@ def find_corr(xyz0, xyz1, F0, F1, nn_max_n, subsample_size=-1):
         inds1 = np.random.choice(len(F1), N1, replace=False)
         F0, F1 = F0[inds0], F1[inds1]
 
-    # Compute the nn
     nn_inds = find_nn_gpu(F0, F1, nn_max_n=nn_max_n)
     if subsample_size > 0 and subsample:
         return xyz0[inds0], xyz1[inds1[nn_inds]]
@@ -56,18 +55,10 @@ def find_kcorr(F0, F1, k=1, nn_max_n=500, subsample_size=-1):
         inds0 = np.random.choice(len(F0), N0, replace=False)
         inds1 = np.random.choice(len(F1), N1, replace=False)
         F0, F1 = F0[inds0], F1[inds1]
-    # Compute the nn
-    # device = torch.device("cuda")
-    # if not torch.is_tensor(F0):
-    #     F0 = torch.from_numpy(F0).to(device)
-    # if not torch.is_tensor(F1):
-    #     F1 = torch.from_numpy(F1).to(device)
 
     if k == 1:
-        # nn_inds = find_nn_gpu(F0, F1, nn_max_n=nn_max_n)
         nn_inds = find_nn_cpu(F0, F1).flatten()
     else:
-        # nn_inds = find_knn_gpu(F0, F1, k=k, nn_max_n=nn_max_n)
         nn_inds = find_knn_cpu(F0, F1, k=k).flatten()
 
     if subsample_size > 0 and subsample:
@@ -80,22 +71,24 @@ def find_kcorr(F0, F1, k=1, nn_max_n=500, subsample_size=-1):
 
 
 def registration_based_on_corr(source_pcd, target_pcd, max_corr_dist=0.03, seed=0):
+    corr_indices = np.column_stack((np.arange(len(source_pcd)), np.arange(len(target_pcd))))
+    if os.environ.get("CORSAIR_DEDUP_CORRESPONDENCES") == "1":
+        target_pcd, target_inverse = np.unique(target_pcd, axis=0, return_inverse=True)
+        source_unique, source_inverse, counts = np.unique(source_pcd, axis=0, return_inverse=True, return_counts=True)
+        if np.all(counts == counts[0]):
+            source_pcd = source_unique
+        else:
+            source_inverse = np.arange(len(source_pcd))
+        corr_indices = np.column_stack((source_inverse, target_inverse))
     source_pcd_o3d = o3d.geometry.PointCloud()
     source_pcd_o3d.points = o3d.utility.Vector3dVector(source_pcd.astype(np.float64))
     target_pcd_o3d = o3d.geometry.PointCloud()
     target_pcd_o3d.points = o3d.utility.Vector3dVector(target_pcd.astype(np.float64))
-    corr_o3d = o3d.utility.Vector2iVector(np.asarray(list(map(lambda x: [x, x], range(source_pcd.shape[0])))))
-    # hyperparameter to tune
-    # seems to be better when max_corr_dist is larger
-    # max_corr_dist = 0.03
-    # there are several other parameters of RANSAC
+    corr_o3d = o3d.utility.Vector2iVector(corr_indices)
     o3d.utility.random.seed(seed)
-    # tqdm.write("running registration_ransac_based_on_correspondence")
-    # os.environ["OMP_NUM_THREADS"] = "1"
     result = o3d.pipelines.registration.registration_ransac_based_on_correspondence(
         source_pcd_o3d, target_pcd_o3d, corr_o3d, max_corr_dist, ransac_n=10
     )
-    # os.environ.pop("OMP_NUM_THREADS")
     T_est = result.transformation
     return T_est
 
@@ -119,7 +112,6 @@ def eval_pose(T_est, T0, T1, axis_symmetry=1):
         r_loss = np.arccos(np.clip((np.trace(T_est[:3, :3].t() @ T_gt[:3, :3]) - 1) / 2, -1, 1))
         t_loss = np.linalg.norm(T_est[:3, 3] - T_gt[:3, 3])
 
-        # avg_dist = np.linalg.norm(apply_transform(xyz0_corr, T_est)-xyz1_corr, axis=1).mean()
 
         if r_loss_best > r_loss:
             r_loss_best = r_loss

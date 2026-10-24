@@ -1,4 +1,6 @@
 logs/
+results/
+data/ShapeNetCore.v2.PC15k/
 .ipynb_checkpoints/
 .vscode
 Pipfile.lock

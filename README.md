@@ -20,6 +20,40 @@ paper [CORSAIR: Convolutional Object Retrieval and Symmetry-AIded Registration](
 
 # Docker Environment
 
+## Table 1 pose evaluation
+
+Docker is the only host dependency. From this checkout, run:
+
+```shell
+bash reproduction/run_table1.bash
+```
+
+This builds a pinned CPU environment and evaluates 100 chairs and 100 tables
+from the bundled ShapeNet test subsets. Each CAD is paired with a complete,
+noiseless copy under one random pose (seed 0). Correct CAD pairing is supplied.
+The released `scannet_pose_chair_best` and `scannet_pose_table_best` checkpoints
+and the input point clouds are included in Git. No extra datasets are required.
+Every run performs fresh inference and registration, without prediction caches.
+
+Rows compare RANSAC, symmetry-aware CORSAIR, and CORSAIR plus up to 10 ICP
+iterations. RANSAC uses 10 correspondence pairs, k=5 feature matches, voxel
+size 0.03, and correspondence-distance threshold 0.4. ICP keeps the initial
+pose unless nearest-neighbor RMSE decreases and overlap within 0.08 does not
+decrease. This geometry-only guard does not guarantee lower ground-truth pose
+errors. Translation errors use unit-radius-normalized coordinates.
+
+A fresh directory in `results/pose-tables/` contains `table1.csv`, `tables.html`,
+`per_case.csv`, the protocol/checkpoint hashes, and pose/cloud archives. The
+report verifies all saved transforms and ICP decisions and includes median
+and worst rotation-error examples. Joint success requires RRE≤5° and RTE≤0.02
+on the same case; all failures remain in the denominator. The final table and
+joint achievement percentages are also printed to the terminal.
+
+Use `--models 1` for a quick check, `--workers 8` to limit CPU concurrency, or
+`--categories chair` to evaluate one category. Defaults are 100 models per
+category, up to 12 CPU workers, and 10 ICP iterations. A complete run can take
+tens of minutes on CPU.
+
 ```shell
 git clone --recursive --branch main https://github.com/ExistentialRobotics/CORSAIR.git
 cd CORSAIR/docker

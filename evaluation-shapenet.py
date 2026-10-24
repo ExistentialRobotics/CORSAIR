@@ -24,7 +24,6 @@ import open3d as o3d
 import pandas as pd
 import torch
 import transforms3d as t3d
-import vedo
 from joblib import Parallel
 from joblib import delayed
 from scipy.spatial import KDTree
@@ -33,6 +32,8 @@ from tqdm import tqdm
 from model import load_model
 from utils.eval_pose import eval_pose
 from utils.symmetry import sym_pose
+from utils.pose_refinement import refine_pose_icp
+from utils.preprocess import apply_transform, chamfer_kdtree_1direction
 
 
 @dataclass
@@ -56,8 +57,12 @@ class Config:
     voxel_size: float = 0.03
     k_nn: int = 5
     max_corr: float = 0.4
+    icp_refinement: str = "none"
+    icp_iterations: int = 10
 
     def __post_init__(self):
+        if self.icp_iterations < 1:
+            raise ValueError("icp_iterations must be positive")
         if self.category == "table":
             self.category_id = "04379243"
         elif self.category == "chair":
@@ -76,16 +81,17 @@ def load_pc(path):
     return pc
 
 
-def generate_random_pose(config: Config):
-    roll = np.random.uniform(-config.max_roll_deg, config.max_roll_deg)
-    pitch = np.random.uniform(-config.max_pitch_deg, config.max_pitch_deg)
-    yaw = np.random.uniform(-config.max_yaw_deg, config.max_yaw_deg)
+def generate_random_pose(config: Config, rng=None):
+    rng = np.random if rng is None else rng
+    roll = rng.uniform(-config.max_roll_deg, config.max_roll_deg)
+    pitch = rng.uniform(-config.max_pitch_deg, config.max_pitch_deg)
+    yaw = rng.uniform(-config.max_yaw_deg, config.max_yaw_deg)
     roll = np.deg2rad(roll)
     pitch = np.deg2rad(pitch)
     yaw = np.deg2rad(yaw)
-    translation_x = np.random.uniform(-config.max_translation_x, config.max_translation_x)
-    translation_y = np.random.uniform(-config.max_translation_y, config.max_translation_y)
-    translation_z = np.random.uniform(-config.max_translation_z, config.max_translation_z)
+    translation_x = rng.uniform(-config.max_translation_x, config.max_translation_x)
+    translation_y = rng.uniform(-config.max_translation_y, config.max_translation_y)
+    translation_z = rng.uniform(-config.max_translation_z, config.max_translation_z)
     pose = np.eye(4)
     pose[:3, :3] = t3d.euler.euler2mat(roll, pitch, yaw)
     pose[0, 3] = translation_x
@@ -112,33 +118,20 @@ def batch_coords_and_feats(coords, feats):
     return batch_coords, batch_feats
 
 
-def generate_test_pc_pair(config: Config, pc_file):
+def generate_test_pc_pair(config: Config, pc_file, rng=None):
     pc = load_pc(pc_file)
-    pose = generate_random_pose(config)
+    pose = generate_random_pose(config, rng)
     pc_transformed = pc @ pose[:3, :3].T + pose[:3, [3]].T
     return pc, pc_transformed, pose
 
 
 def chamfer_max(pc0, pc0_tree, pc1, pc1_tree):
-    max0 = 0
-    for i in range(len(pc0)):
-        dist, idx = pc1_tree.query(pc0[i], k=1)
-        if dist > max0:
-            max0 = dist
-
-    max1 = 0
-    for i in range(len(pc1)):
-        dist, idx = pc0_tree.query(pc1[i], k=1)
-        if dist > max1:
-            max1 = dist
-
-    return max(max0, max1)
+    return max(pc1_tree.query(pc0, k=1)[0].max(), pc0_tree.query(pc1, k=1)[0].max())
 
 
 def test_symmetry_label(sym_label: int, pc: np.ndarray, cd_threshold: float):
     pc_tree = KDTree(pc)
     for i in range(1, int(sym_label / 2) + 1):
-        # in ShapeNet, y-axis is upward
         R = t3d.euler.euler2mat(0, i * (2 * np.pi) / sym_label, 0)
         pc_rot = pc @ R.T
         pc_rot_tree = KDTree(pc_rot)
@@ -171,6 +164,10 @@ class App:
         parser.add_argument("--model-ckpt", type=str, required=True)
         parser.add_argument("--device", type=str, default="cuda")
         parser.add_argument("--random-seed", type=int, default=0)
+        parser.add_argument("--icp-refinement", choices=["none", "standard", "multiscale"], default="none",
+                            help="Optional geometry-only refinement; thresholds use normalized coordinates")
+        parser.add_argument("--icp-iterations", type=int, default=10,
+                            help="Positive ICP iteration cap; per-stage cap for multiscale (default: 10)")
         args = parser.parse_args()
         self.config = Config(
             shapenet_root=args.shapenet_root,
@@ -186,6 +183,8 @@ class App:
             model_ckpt=args.model_ckpt,
             device=args.device,
             random_seed=args.random_seed,
+            icp_refinement=args.icp_refinement,
+            icp_iterations=args.icp_iterations,
         )
 
         random.seed(self.config.random_seed)
@@ -193,10 +192,11 @@ class App:
         o3d.utility.random.seed(self.config.random_seed)
         torch.manual_seed(self.config.random_seed)
         torch.cuda.manual_seed_all(self.config.random_seed)
+        self.pose_rng = np.random.RandomState(self.config.random_seed)
 
         self.category_dir = os.path.join(self.config.shapenet_root, self.config.category_id, "test")
-        self.pc_files = os.listdir(self.category_dir)
-        self.pc_files = [os.path.join(self.category_dir, f) for f in self.pc_files]
+        self.pc_files = sorted(os.path.join(self.category_dir, f)
+                               for f in os.listdir(self.category_dir) if f.endswith(".npy"))
         if self.config.n_models <= 0:
             self.config.n_models = len(self.pc_files)
         else:
@@ -210,6 +210,10 @@ class App:
             f"shapenet-seed{self.config.random_seed}-{self.config.category}-"
             f"{self.config.n_models}-{self.config.n_poses_per_model}"
         )
+        if self.config.icp_refinement != "none":
+            postfix += f"-icp-{self.config.icp_refinement}"
+            if self.config.icp_iterations != 50:
+                postfix += f"-iter{self.config.icp_iterations}"
         self.csv_file = f"results-{postfix}.csv"
         self.npz_file = f"poses-{postfix}.npz"
         if os.path.exists(self.csv_file) and os.path.exists(self.npz_file):
@@ -223,7 +227,6 @@ class App:
         else:
             self.generate_test_results()
 
-        # print the statistics based on collected results
         rte_002_sym = (self.df["rte_sym"] <= 0.02).sum() / len(self.df)
         rte_002_ransac = (self.df["rte_ransac"] <= 0.02).sum() / len(self.df)
         rre_05_sym = (self.df["rre_sym"] <= np.deg2rad(5)).sum() / len(self.df)
@@ -235,11 +238,12 @@ class App:
         tqdm.write(f"RRE <= 5 deg: sym: {rre_05_sym:.4f}, ransac: {rre_05_ransac:.4f}")
         tqdm.write(f"RTE <= 0.02 & RRE <= 5 deg: sym: {rte_002_rre_05_sym:.4f}, ransac: {rte_002_rre_05_ransac:.4f}")
 
-        # Visualize Results
         self._init_gui()
         self.visualize()
 
-    def registration_worker(self, feats_pc, feats_pc_transformed, coords_pc, pc_quant, pc_transformed_quant, pose_gt):
+    def registration_worker(self, feats_pc, feats_pc_transformed, coords_pc, pc_quant, pc_transformed_quant, pose_gt,
+                            observed_target_xyz=None, sample_seed=None):
+        np.random.seed(self.config.random_seed if sample_seed is None else sample_seed)
         symmetry_label = get_symmetry_label(coords_pc, 0.1)
 
         T_est_sym, chamfer_dist_sym, T_est_ransac, chamfer_dist_ransac, sym_success = sym_pose(
@@ -252,6 +256,16 @@ class App:
             self.config.max_corr,
             seed=self.config.random_seed,
         )
+        if self.config.icp_refinement != "none":
+            if observed_target_xyz is None:
+                raise ValueError("ICP refinement requires the observed target point cloud")
+            multiscale = self.config.icp_refinement == "multiscale"
+            T_est_sym = torch.from_numpy(refine_pose_icp(coords_pc, observed_target_xyz, T_est_sym, multiscale,
+                                                       max_iterations=self.config.icp_iterations)).float()
+            T_est_ransac = torch.from_numpy(refine_pose_icp(coords_pc, observed_target_xyz, T_est_ransac, multiscale,
+                                                          max_iterations=self.config.icp_iterations)).float()
+            chamfer_dist_sym = chamfer_kdtree_1direction(apply_transform(pc_quant, T_est_sym), pc_transformed_quant)
+            chamfer_dist_ransac = chamfer_kdtree_1direction(apply_transform(pc_quant, T_est_ransac), pc_transformed_quant)
         rte_sym, rre_sym = eval_pose(T_est_sym, np.eye(4), pose_gt, axis_symmetry=symmetry_label)
         rte_ransac, rre_ransac = eval_pose(T_est_ransac, np.eye(4), pose_gt, axis_symmetry=symmetry_label)
 
@@ -268,9 +282,6 @@ class App:
             rre_ransac=rre_ransac,
         )
 
-        # tqdm.write(f"symmetry label: {symmetry_label}, success: {sym_success}")
-        # tqdm.write(f"sym: RTE={rte_sym:.4f}, RRE={rre_sym:.4f}, CD={chamfer_dist_sym:.4f}")
-        # tqdm.write(f"ransac: RTE={rte_ransac:.4f}, RRE={rre_ransac:.4f}, CD={chamfer_dist_ransac:.4f}")
 
         return results
 
@@ -283,16 +294,13 @@ class App:
             conv1_kernel_size=3,
             D=3,
         ).to(self.config.device)
-        # embedding = fc.conv1_max_embedding(1024, 512, 256).to(self.config.device)
         checkpoint = torch.load(self.config.model_ckpt, map_location=self.config.device)
         model.load_state_dict(checkpoint["state_dict"])
-        # embedding.load_state_dict(checkpoint["embedding_state_dict"])
         model.eval()
-        # embedding.eval()
 
-        for pc_file in tqdm(self.pc_files, ncols=160, desc="model", position=0):
-            for _ in tqdm(range(self.config.n_poses_per_model), ncols=160, desc="pose", position=1, leave=False):
-                coords_pc, coords_pc_transformed, pose_gt = generate_test_pc_pair(self.config, pc_file)
+        for model_idx, pc_file in enumerate(tqdm(self.pc_files, ncols=160, desc="model", position=0)):
+            for pose_idx in tqdm(range(self.config.n_poses_per_model), ncols=160, desc="pose", position=1, leave=False):
+                coords_pc, coords_pc_transformed, pose_gt = generate_test_pc_pair(self.config, pc_file, self.pose_rng)
 
                 pc_quant, pc_grid = quantize_pc(coords_pc, self.config.voxel_size)
                 pc_transformed_quant, pc_transformed_grid = quantize_pc(coords_pc_transformed, self.config.voxel_size)
@@ -316,6 +324,8 @@ class App:
                     pc_quant.detach().cpu().numpy(),
                     pc_transformed_quant.detach().cpu().numpy(),
                     pose_gt,
+                    coords_pc_transformed,
+                    self.config.random_seed + model_idx * self.config.n_poses_per_model + pose_idx,
                 )
 
     def generate_test_results(self):
@@ -372,6 +382,7 @@ class App:
                 rre_ransac,
                 chamfer_dist_ransac,
             ]
+            self.df.to_csv(self.csv_file + ".partial", index=False)
 
         self.df.to_csv(self.csv_file, index=False)
 
@@ -402,12 +413,8 @@ class App:
         self._update_gui()
 
     def _init_gui(self):
-        # layout:
-        # |0: The full window
-        # |-------------------------|------------------------------|
-        # | 1. The org point cloud and the transformed point cloud |
-        # | 2. Vanilla RANSAC       | 3. Symmetry RANSAC           |
-        # |-------------------------|------------------------------|
+        global vedo
+        import vedo
         dx = 0.01
         dy = 0.01
         nx = 2
@@ -471,9 +478,9 @@ class App:
             self.vedo_flagpole2,
         ).render(resetcam=True)
 
-        # visualize registration by vanilla ransac
         if self.vedo_pcd_gt1 is None:
-            self.plotter.at(2).add(vedo.Text2D("Registration (Vanilla RANSAC)"))
+            suffix = " + ICP" if self.config.icp_refinement != "none" else ""
+            self.plotter.at(2).add(vedo.Text2D(f"Registration (Vanilla RANSAC{suffix})"))
         else:
             self.plotter.at(2).remove(self.vedo_pcd_ransac, self.vedo_pcd_gt1, self.vedo_loss_text_ransac)
         pose_pred_ransac = self.poses_pred_ransac[self.display_pc_idx]
@@ -491,9 +498,9 @@ class App:
             self.vedo_loss_text_ransac,
         ).render(resetcam=True)
 
-        # visualize registration by symmetry ransac
         if self.vedo_pcd_sym is None:
-            self.plotter.at(3).add(vedo.Text2D("Registration (Symmetry RANSAC)"))
+            suffix = " + ICP" if self.config.icp_refinement != "none" else ""
+            self.plotter.at(3).add(vedo.Text2D(f"Registration (Symmetry RANSAC{suffix})"))
         else:
             self.plotter.at(3).remove(self.vedo_pcd_sym, self.vedo_pcd_gt2, self.vedo_loss_text_sym)
         pose_pred_sym = self.poses_pred_sym[self.display_pc_idx]

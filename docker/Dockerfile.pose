@@ -1,0 +1,35 @@
+FROM python:3.10-slim-bookworm
+
+ARG BUILD_ID=local
+LABEL corsair.pose_build="${BUILD_ID}"
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    OMP_NUM_THREADS=1 \
+    OPENBLAS_NUM_THREADS=1 \
+    MKL_NUM_THREADS=1 \
+    MAX_JOBS=2 \
+    MPLCONFIGDIR=/tmp/matplotlib
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential git libopenblas-dev libgl1 libgomp1 libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+RUN pip install --no-cache-dir "setuptools<70" wheel ninja "numpy==1.26.4"
+RUN pip install --no-cache-dir "torch==2.3.1+cpu" \
+    --index-url https://download.pytorch.org/whl/cpu --extra-index-url https://pypi.org/simple
+COPY requirements-pose.txt /tmp/requirements-pose.txt
+RUN pip install --no-cache-dir -r /tmp/requirements-pose.txt
+RUN git clone https://github.com/daizhirui/MinkowskiEngine.git /tmp/MinkowskiEngine \
+    && cd /tmp/MinkowskiEngine \
+    && git checkout ce930eeb403a8e3f99693662ec5ce329a0ab3528 \
+    && python setup.py bdist_wheel --cpu_only --blas=openblas \
+    && pip install --no-cache-dir --no-deps dist/*.whl \
+    && rm -rf /tmp/MinkowskiEngine
+
+WORKDIR /workspace
+COPY model ./model
+COPY utils ./utils
+COPY ckpts/scannet_ret_chair ./ckpts/scannet_ret_chair
+COPY docker/data/ShapeNetCore.v2.PC15k/03001627/test ./docker/data/ShapeNetCore.v2.PC15k/03001627/test
+COPY evaluation-shapenet.py ./evaluation-shapenet.py
+COPY reproduction/run_chair_pipeline.py reproduction/run_pose.py ./reproduction/
+ENTRYPOINT ["python", "-u", "reproduction/run_chair_pipeline.py"]

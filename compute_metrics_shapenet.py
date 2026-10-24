@@ -24,6 +24,8 @@ def main():
     parser.add_argument("--n-models", type=int, default=100)
     parser.add_argument("--n-poses-per-model", type=int, default=1)
     parser.add_argument("--random-seed", type=int, default=0)
+    parser.add_argument("--icp-refinement", choices=["none", "standard", "multiscale"], default="none")
+    parser.add_argument("--icp-iterations", type=int, default=10)
     args = parser.parse_args()
 
     table = pd.DataFrame(
@@ -43,10 +45,16 @@ def main():
             "rte_005_ransac",
             "rte_010_ransac",
             "rte_015_ransac",
+            "joint_rre_005_rte_002_sym",
+            "joint_rre_005_rte_002_ransac",
         ]
     )
     for category in args.categories:
         postfix = f"shapenet-seed{args.random_seed}-{category}-{args.n_models}-{args.n_poses_per_model}"
+        if args.icp_refinement != "none":
+            postfix += f"-icp-{args.icp_refinement}"
+            if args.icp_iterations != 50:
+                postfix += f"-iter{args.icp_iterations}"
         df = pd.read_csv(f"results-{postfix}.csv")
 
         rre_005_sym = (df["rre_sym"] <= np.deg2rad(5)).sum() / len(df)
@@ -63,6 +71,10 @@ def main():
         rte_005_ransac = (df["rte_ransac"] <= 0.05).sum() / len(df)
         rte_010_ransac = (df["rte_ransac"] <= 0.10).sum() / len(df)
         rte_015_ransac = (df["rte_ransac"] <= 0.15).sum() / len(df)
+        joint_sym = ((df["rre_sym"] <= np.deg2rad(5)) & (df["rte_sym"] <= 0.02)).mean()
+        joint_ransac = ((df["rre_ransac"] <= np.deg2rad(5)) & (df["rte_ransac"] <= 0.02)).mean()
+        print(f"{category}: achievement (RRE <= 5 deg AND RTE <= 0.02): "
+              f"CORSAIR {100 * joint_sym:.2f}%, RANSAC {100 * joint_ransac:.2f}%")
         table.loc[len(table)] = [
             category,
             rre_005_sym,
@@ -79,6 +91,8 @@ def main():
             rte_005_ransac,
             rte_010_ransac,
             rte_015_ransac,
+            joint_sym,
+            joint_ransac,
         ]
     print(table.transpose())
 
