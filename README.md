@@ -29,12 +29,9 @@ docker pull maniothelej/corsair-icp:repro-v1
 docker run --rm --init -v corsair-results:/results maniothelej/corsair-icp:repro-v1 --workers 12
 ```
 
-A plain Docker run evaluates 100 complete ShapeNet chairs and 100 complete
-ShapeNet tables with the correct CAD supplied, then exits. It shows tqdm
-progress and verifies the saved reference.
+Runs the 100 test evaluations with chair and table classes.
 The final combined CORSAIR + ICP metric is 95.00% for the reference results.
-Detailed category/method metrics are saved as CSV reports in a new timestamped
-directory under `/results`. Add `--verbose` for detailed console output.
+Use '--verbose' for more detailed outputs.
 
 ## Browser visualization container
 
@@ -45,13 +42,6 @@ docker run -d --name corsair-icp --init -p 127.0.0.1:8080:8080 \
   -v corsair-results:/results maniothelej/corsair-icp:repro-v1 serve
 ```
 
-Docker downloads the image automatically. Open <http://localhost:8080>.
-The image is hosted at <https://hub.docker.com/r/maniothelej/corsair-icp>.
-This starts the viewer; click **Run evaluation** to evaluate one complete chair
-and one complete table by default. Larger runs and partial-scan evaluation can
-be selected in the browser; partial scans require the additional dataset mounts
-described in [the visualization guide](docker/visual/README.md).
-
 To reproduce and verify the combined CORSAIR + ICP result on 100 complete chairs
 and 100 complete tables:
 
@@ -59,17 +49,7 @@ and 100 complete tables:
 docker run --rm --entrypoint cat maniothelej/corsair-icp:repro-v1 \
   /workspace/docker/visual/reproduce.bash > reproduce-corsair.bash
 bash reproduce-corsair.bash --workers 12
-```
-
-This uses bundled data, runs fresh inference, and verifies the complete chair/table
-results against the saved reference. Partial scans are skipped. The final result
-is the mean of chair and table joint success: **CORSAIR + ICP: 95.00%** for the
-saved reference (97% chairs, 93% tables). The one-model UI default is a smoke test.
-
-The launcher shows tqdm progress with per-stage ETA and one combined final metric.
-Add `--verbose` for detailed progress, category/method metrics, and verification
-JSON. Full evaluation logs and per-case CSVs are still saved in the output
-directory. Rebuild the image to use the updated reporting.
+``
 
 Build and run the standalone CPU app with bundled chair/table data:
 
@@ -92,35 +72,10 @@ for the full partial-scan evaluation, Compose, and image sharing.
 bash reproduction/run_complete.bash
 ```
 
-This performs fresh inference and registration for 100 complete ShapeNet chairs,
+This performs inference and registration for 100 complete ShapeNet chairs,
 100 complete ShapeNet tables, and 100 held-out partial Scan2CAD chairs. The same
 partial queries are evaluated with both the known CAD and the top-1 retrieved
 CAD. Each evaluation compares **RANSAC, CORSAIR, and CORSAIR + ICP**.
-ICP uses up to 10 point-to-point iterations and accepts an update only when
-full-source nearest-neighbor RMSE decreases by more than
-1e-12. There is no overlap condition or ground-truth acceptance gate.
-
-The timestamped `results/complete/` directory contains separate CSV summaries
-for complete CAD pairs, partial scans with known CAD, and partial scans with
-retrieved CAD, plus HTML/Markdown reports and per-case CSVs.
-The separate `gt-diagnostic.csv` and `gt-diagnostic-per_case.csv` report RRE-only
-and RTE-only oracle choices
-without changing the RMSE-based output. Raw poses, ICP proposals, clouds,
-checkpoint hashes, exact query selections, and protocol details are retained in
-the `shape/` and `partial/` subdirectories. `audit.json` verifies the saved
-transforms, selection decisions, and reported pose errors. `manifest.json`,
-`source.tar.gz`, image metadata, and `run.log` record the code, Python package
-versions, dataset images, arguments, and execution status. A failed run is
-marked as failed and does not publish complete reports.
-
-Docker is the only host dependency. Dataset images are downloaded automatically
-if absent. Use `--models 1 --workers 2` for a smoke run or `--workers 8` to
-limit CPU concurrency. The default complete run can take over an hour on CPU.
-ShapeNet uses the released pose checkpoints; partial retrieval and registration
-use `scannet_ret_chair`. Upstream Scan2CAD GT segmentation and pose/scale
-normalization are retained. Translation errors use unit-radius-normalized
-coordinates. The protocol evaluates these fixed subsets, not every held-out
-object in the source datasets.
 
 To regenerate the ground-truth selection diagnostic after a completed run:
 
@@ -146,27 +101,8 @@ This builds a pinned CPU environment and evaluates 100 chairs and 100 tables
 from the bundled ShapeNet test subsets. Each CAD is paired with a complete,
 noiseless copy under one random pose (seed 0). Correct CAD pairing is supplied.
 The released `scannet_pose_chair_best` and `scannet_pose_table_best` checkpoints
-and the input point clouds are included in Git. No extra datasets are required.
-Every run performs fresh inference and registration, without prediction caches.
+and the input point clouds are included in Git.
 
-Rows compare RANSAC, symmetry-aware CORSAIR, and CORSAIR plus up to 10 ICP
-iterations. RANSAC uses 10 correspondence pairs, k=5 feature matches, voxel
-size 0.03, and correspondence-distance threshold 0.4. ICP keeps the initial
-pose unless full-source nearest-neighbor RMSE decreases. There is no overlap
-condition. This geometry-only guard does not guarantee lower ground-truth pose
-errors. Translation errors use unit-radius-normalized coordinates.
-
-A fresh directory in `results/pose-tables/` contains CSV/HTML summaries,
-per-case metrics, the protocol/checkpoint hashes, and pose/cloud archives. The
-report verifies all saved transforms and ICP decisions and includes median
-and worst rotation-error examples. Joint success requires RRE≤5° and RTE≤0.02
-on the same case; all failures remain in the denominator. The final metrics and
-joint achievement percentages are also printed to the terminal.
-
-Use `--models 1` for a quick check, `--workers 8` to limit CPU concurrency, or
-`--categories chair` to evaluate one category. Defaults are 100 models per
-category, up to 12 CPU workers, and 10 ICP iterations. A complete run can take
-tens of minutes on CPU.
 
 ## Build the upstream GPU demo environment
 
