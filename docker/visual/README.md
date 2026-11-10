@@ -4,21 +4,23 @@ The standalone `corsair-icp:local` image includes the CPU inference runtime,
 checkpoints, bundled ShapeNet chair/table test subsets, evaluation scripts, and
 a browser viewer. No GPU, X server, or source-code bind mount is required.
 
-## Run Table 1 (default)
+## Evaluate complete chairs and tables (default)
 
 The public image is `maniothelej/corsair-icp:repro-v1` (Linux amd64). A plain
-`docker run` evaluates Table 1: 100 complete chairs and 100 complete tables,
-with fresh inference, tqdm progress, and reference verification. It exits when
-the evaluation finishes. Partial scans are skipped.
+`docker run` evaluates 100 complete ShapeNet chairs and 100 complete ShapeNet
+tables with the correct CAD supplied, fresh inference, tqdm progress, and
+reference verification. It exits when the evaluation finishes. Partial scans
+are skipped.
 
 ```sh
 docker pull maniothelej/corsair-icp:repro-v1
 docker run --rm --init -v corsair-results:/results maniothelej/corsair-icp:repro-v1 --workers 12
 ```
 
-Each run is saved under `/results/table1-TIMESTAMP` in the results volume.
+Each run is saved in a new timestamped directory under `/results` in the
+results volume.
 The final metric is the combined CORSAIR + ICP chair/table joint success.
-Detailed Table 1 metrics for every method and category remain in `table1.csv`.
+Detailed metrics for every method and category are saved in the CSV reports.
 Use `--verbose` for detailed console output, or `--output /results/NAME` to
 choose a fresh output directory. No dataset-image mounts or exposed ports are
 needed.
@@ -35,9 +37,11 @@ docker run -d --name corsair-icp --init \
   maniothelej/corsair-icp:repro-v1 serve
 ```
 
-Open <http://localhost:8080>. The bundled evaluation needs no additional
-downloads. Full evaluation needs the dataset mounts described below; use the
-public image name in place of `corsair-icp:local` in that command.
+Open <http://localhost:8080> and click **Run evaluation**. The default evaluates
+one complete chair and one complete table. The bundled complete-CAD evaluation
+needs no additional downloads. Evaluating partial scans needs the dataset
+mounts described below; use the public image name in place of
+`corsair-icp:local` in that command.
 
 ## Reproduce the reported number
 
@@ -62,7 +66,7 @@ CORSAIR + ICP: 95.00%
 The evaluation shows tqdm bars with completed tasks, elapsed time, speed, and
 estimated remaining time for each feature-extraction and registration phase.
 The launcher also prints total elapsed time and the output directory. Add
-`--verbose` to see per-case progress, separate category/method tables, and the
+`--verbose` to see per-case progress, separate category/method metrics, and the
 verification JSON.
 
 Each run performs fresh inference and registration. It compares the complete
@@ -76,9 +80,10 @@ combined final result. The one-model browser default is a smoke test and does
 not reproduce the aggregate percentage.
 
 To check an existing run, invoke `reproduction/reproduce.py --check-only /results/RUN`
-inside the image with the results directory mounted. Historical three-table runs
-are still checked against all three reference tables. The browser's full
-three-table mode remains available separately and requires the mounts below.
+inside the image with the results directory mounted. Existing runs that include
+partial scans are also checked against the known-CAD and retrieved-CAD references.
+The browser can evaluate complete CAD pairs and partial scans together with the
+mounts below.
 
 ## Build locally
 
@@ -126,7 +131,7 @@ docker cp corsair-icp:/results ./corsair-results-export
 With Docker Compose installed, `docker compose -f compose.visual.yml up -d`
 starts the same app after the runtime has been built.
 
-## Full three-table evaluation
+## Evaluate complete CAD pairs and partial scans in the browser
 
 The full evaluation additionally needs the three existing dataset images.
 Create data containers once; their dataset volumes are mounted read-only.
@@ -148,8 +153,9 @@ docker run -d --name corsair-icp --init \
   corsair-icp:local serve
 ```
 
-Select **Full three-table evaluation** in the browser. All three tables and
-both partial-scan modes can be inspected in the same viewer. This performs
+Choose the browser's full evaluation mode to run complete ShapeNet chair/table
+pairs and partial Scan2CAD chairs with both known and top-1 retrieved CAD.
+The results of each evaluation can be inspected in the same viewer. This performs
 the existing audited `reproduction/run_complete.py` workflow inside the image.
 
 ## Image sharing

@@ -29,11 +29,12 @@ docker pull maniothelej/corsair-icp:repro-v1
 docker run --rm --init -v corsair-results:/results maniothelej/corsair-icp:repro-v1 --workers 12
 ```
 
-A plain Docker run evaluates Table 1 only: 100 complete chairs and 100 complete
-tables, then exits. It shows tqdm progress and verifies the saved reference.
+A plain Docker run evaluates 100 complete ShapeNet chairs and 100 complete
+ShapeNet tables with the correct CAD supplied, then exits. It shows tqdm
+progress and verifies the saved reference.
 The final combined CORSAIR + ICP metric is 95.00% for the reference results.
-Detailed category/method metrics are saved in `table1.csv` under
-`/results/table1-TIMESTAMP`. Add `--verbose` for detailed console output.
+Detailed category/method metrics are saved as CSV reports in a new timestamped
+directory under `/results`. Add `--verbose` for detailed console output.
 
 ## Browser visualization container
 
@@ -46,6 +47,10 @@ docker run -d --name corsair-icp --init -p 127.0.0.1:8080:8080 \
 
 Docker downloads the image automatically. Open <http://localhost:8080>.
 The image is hosted at <https://hub.docker.com/r/maniothelej/corsair-icp>.
+This starts the viewer; click **Run evaluation** to evaluate one complete chair
+and one complete table by default. Larger runs and partial-scan evaluation can
+be selected in the browser; partial scans require the additional dataset mounts
+described in [the visualization guide](docker/visual/README.md).
 
 To reproduce and verify the combined CORSAIR + ICP result on 100 complete chairs
 and 100 complete tables:
@@ -61,9 +66,10 @@ results against the saved reference. Partial scans are skipped. The final result
 is the mean of chair and table joint success: **CORSAIR + ICP: 95.00%** for the
 saved reference (97% chairs, 93% tables). The one-model UI default is a smoke test.
 
-The launcher shows tqdm progress with per-stage ETA and one combined final metric. Add `--verbose` for the detailed progress,
-tables, and verification JSON. Full evaluation logs and per-case CSVs are still
-saved in the output directory. Rebuild the image to use the updated reporting.
+The launcher shows tqdm progress with per-stage ETA and one combined final metric.
+Add `--verbose` for detailed progress, category/method metrics, and verification
+JSON. Full evaluation logs and per-case CSVs are still saved in the output
+directory. Rebuild the image to use the updated reporting.
 
 Build and run the standalone CPU app with bundled chair/table data:
 
@@ -80,7 +86,7 @@ The default smoke run evaluates one chair and one table. Saved runs persist
 in the Docker volume. See [the visualization guide](docker/visual/README.md)
 for the full partial-scan evaluation, Compose, and image sharing.
 
-## Complete three-table evaluation
+## Complete CAD and partial-scan pose evaluation
 
 ```shell
 bash reproduction/run_complete.bash
@@ -89,22 +95,23 @@ bash reproduction/run_complete.bash
 This performs fresh inference and registration for 100 complete ShapeNet chairs,
 100 complete ShapeNet tables, and 100 held-out partial Scan2CAD chairs. The same
 partial queries are evaluated with both the known CAD and the top-1 retrieved
-CAD. Each of the three output tables orders its methods as **RANSAC, CORSAIR,
-CORSAIR + ICP**. ICP uses up to 10 point-to-point iterations and accepts an
-update only when full-source nearest-neighbor RMSE decreases by more than
+CAD. Each evaluation compares **RANSAC, CORSAIR, and CORSAIR + ICP**.
+ICP uses up to 10 point-to-point iterations and accepts an update only when
+full-source nearest-neighbor RMSE decreases by more than
 1e-12. There is no overlap condition or ground-truth acceptance gate.
 
-The timestamped `results/complete/` directory contains `table1.csv` (complete
-pairs), `table2.csv` (partial, known CAD), `table3.csv` (partial, retrieved CAD),
-`tables.html`, `tables.md`, and per-case CSVs. The separate `gt-diagnostic.csv`
-and `gt-diagnostic-per_case.csv` report RRE-only and RTE-only oracle choices
+The timestamped `results/complete/` directory contains separate CSV summaries
+for complete CAD pairs, partial scans with known CAD, and partial scans with
+retrieved CAD, plus HTML/Markdown reports and per-case CSVs.
+The separate `gt-diagnostic.csv` and `gt-diagnostic-per_case.csv` report RRE-only
+and RTE-only oracle choices
 without changing the RMSE-based output. Raw poses, ICP proposals, clouds,
 checkpoint hashes, exact query selections, and protocol details are retained in
 the `shape/` and `partial/` subdirectories. `audit.json` verifies the saved
 transforms, selection decisions, and reported pose errors. `manifest.json`,
 `source.tar.gz`, image metadata, and `run.log` record the code, Python package
 versions, dataset images, arguments, and execution status. A failed run is
-marked as failed and does not publish complete tables.
+marked as failed and does not publish complete reports.
 
 Docker is the only host dependency. Dataset images are downloaded automatically
 if absent. Use `--models 1 --workers 2` for a smoke run or `--workers 8` to
@@ -127,7 +134,7 @@ docker run --rm --user "$(id -u):$(id -g)" \
 This diagnostic compares RRE-only and RTE-only oracle choices; it never changes
 poses or the RMSE-based selection rule.
 
-## Table 1 pose evaluation
+## Build and evaluate complete CAD pairs from a checkout
 
 Docker is the only host dependency. From this checkout, run:
 
@@ -149,17 +156,21 @@ pose unless full-source nearest-neighbor RMSE decreases. There is no overlap
 condition. This geometry-only guard does not guarantee lower ground-truth pose
 errors. Translation errors use unit-radius-normalized coordinates.
 
-A fresh directory in `results/pose-tables/` contains `table1.csv`, `tables.html`,
-`per_case.csv`, the protocol/checkpoint hashes, and pose/cloud archives. The
+A fresh directory in `results/pose-tables/` contains CSV/HTML summaries,
+per-case metrics, the protocol/checkpoint hashes, and pose/cloud archives. The
 report verifies all saved transforms and ICP decisions and includes median
 and worst rotation-error examples. Joint success requires RRE≤5° and RTE≤0.02
-on the same case; all failures remain in the denominator. The final table and
+on the same case; all failures remain in the denominator. The final metrics and
 joint achievement percentages are also printed to the terminal.
 
 Use `--models 1` for a quick check, `--workers 8` to limit CPU concurrency, or
 `--categories chair` to evaluate one category. Defaults are 100 models per
 category, up to 12 CPU workers, and 10 ICP iterations. A complete run can take
 tens of minutes on CPU.
+
+## Build the upstream GPU demo environment
+
+These commands build the upstream image for the desktop demos below:
 
 ```shell
 git clone --recursive --branch main https://github.com/ExistentialRobotics/CORSAIR.git
@@ -176,6 +187,9 @@ reboot # reboot the system to apply the changes
 
 Install Docker, and build docker images following instructions from the previous section.
 For pose estimation, two categories are available, namely chair and table. Execute *one* of the commands below to run the demos.
+Each command evaluates 100 complete ShapeNet CAD models from the selected
+category with one random pose per model and opens the desktop visualization.
+Feature extraction uses the GPU; symmetry matching and registration use the CPU.
 
 ```shell
 cd CORSAIR/docker
