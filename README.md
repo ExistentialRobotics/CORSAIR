@@ -20,7 +20,7 @@ paper [CORSAIR: Convolutional Object Retrieval and Symmetry-AIded Registration](
 
 # Docker Environment
 
-## Table 1 evaluation (default)
+## Evaluation
 
 Pull and run the public CPU image (Linux amd64):
 
