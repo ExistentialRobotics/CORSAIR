@@ -1,4 +1,4 @@
-"""Fresh pilot on real partial Scan2CAD chairs, using upstream normalization."""
+"""Fresh three-method evaluation on real partial Scan2CAD chairs."""
 import argparse
 from datetime import datetime, timezone
 import hashlib
@@ -23,6 +23,7 @@ from utils.read_json import to_T
 from utils.symmetry import sym_pose
 from utils.pose_metrics import pose_errors
 from utils.pose_refinement import refine_pose_icp, guard_pose_update
+from reproduction.reporting import emit_progress
 
 
 def score(estimate, base_transform, symmetry):
@@ -77,30 +78,36 @@ def plot_results(output):
 def register_pair(mode, idx, features, scan_xyz, target_features, target_xyz, target,
                   target_symmetry, truth_symmetry, observed, transform, iterations, seed, row):
     np.random.seed(seed)
-    estimated, _, _, _, _ = sym_pose(features, scan_xyz, target_features, target_xyz,
+    estimated, _, ransac, _, _ = sym_pose(features, scan_xyz, target_features, target_xyz,
                                      target_symmetry, seed=seed)
     before = estimated.numpy().astype(np.float64)
+    ransac = ransac.numpy().astype(np.float64)
     proposal = refine_pose_icp(observed, target, before, max_iterations=iterations, guard=False)
     after, guard_details = guard_pose_update(observed, target, before, proposal)
     before_rre, before_rte = score(before, transform, truth_symmetry)
     proposal_rre, proposal_rte = score(proposal, transform, truth_symmetry)
     after_rre, after_rte = score(after, transform, truth_symmetry)
+    ransac_rre, ransac_rte = score(ransac, transform, truth_symmetry)
     row.update(before_rre_deg=before_rre, before_rte=before_rte,
                proposal_rre_deg=proposal_rre, proposal_rte=proposal_rte,
                after_rre_deg=after_rre, after_rte=after_rte,
+               ransac_rre_deg=ransac_rre, ransac_rte=ransac_rte,
+               truth_symmetry=truth_symmetry,
                **{f'guard_{key}': value for key, value in guard_details.items()})
     return row, {f'{idx}_{mode}_before': before, f'{idx}_{mode}_after': after,
-                 f'{idx}_{mode}_proposal': proposal, f'{idx}_{mode}_cad': target}
+                 f'{idx}_{mode}_proposal': proposal, f'{idx}_{mode}_cad': target,
+                 f'{idx}_{mode}_ransac': ransac}
 
 
 def summarize(frame, summary):
-    summary['icp_guard'] = 'Accept lower full observed-scan nearest-neighbor RMSE with no loss of overlap at 0.08; otherwise keep the initial pose. No GT errors used.'
+    summary['icp_guard'] = 'Accept lower full observed-scan nearest-neighbor RMSE; otherwise keep the initial pose. No overlap condition or GT errors used.'
+    summary['icp_acceptance'] = 'rmse_only'
     for mode in ['retrieved', 'known_pair']:
         subset = frame[frame['mode'] == mode]
         summary[mode] = {'exact_id_percent': float(100 * subset.exact_id.mean())}
         if 'guard_accepted' in subset:
             summary[mode]['icp_accepted_count'] = int(subset.guard_accepted.sum())
-        for stage in ['before', 'proposal', 'after']:
+        for stage in ['ransac', 'before', 'proposal', 'after']:
             if f'{stage}_rre_deg' not in subset:
                 continue
             r, t = subset[f'{stage}_rre_deg'], subset[f'{stage}_rte']
@@ -147,11 +154,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--data', type=Path, default=Path('/data'))
     parser.add_argument('--output', type=Path, default=ROOT / 'results' / 'partial-chairs')
-    parser.add_argument('--models', type=int, default=20)
+    parser.add_argument('--models', type=int, default=100)
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--icp-iterations', type=int, default=10)
     parser.add_argument('--workers', type=int, default=3)
     args = parser.parse_args()
+    if args.models < 1 or args.icp_iterations < 1 or args.workers < 1:
+        parser.error('models, icp-iterations, and workers must be positive')
     started = time.monotonic()
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
@@ -191,14 +200,17 @@ def main():
         return result
 
     cad_features = []
+    emit_progress('Partial scans: CAD descriptors', 0, len(library))
     for start in range(0, len(library), 16):
         cad_features.extend(extract([library[i] for i in range(start, min(start + 16, len(library)))]))
         print(f'CAD descriptors {len(cad_features)}/{len(library)}', flush=True)
+        emit_progress('Partial scans: CAD descriptors', len(cad_features), len(library))
     descriptors = np.stack([x[2] for x in cad_features])
     fixed = np.load(ROOT / 'configs/fix_trans.npy')
     symmetries = [int(line.split()[1]) for line in
                   (ROOT / 'configs/03001627_scan2cad_rot_sym_label.txt').read_text().splitlines()]
     records, arrays, tasks = [], {}, []
+    emit_progress('Partial scans: query features', 0, len(selected))
     for count, idx in enumerate(selected):
         gt_idx = library.id2idx[matches[idx]]
         scan = load_raw_pc(os.path.join(scanroot, files[idx]), 10000)
@@ -227,6 +239,8 @@ def main():
                 target, symmetries[target_idx], symmetries[gt_idx], observed, transform,
                 args.icp_iterations, pair_seed, row))
         print(f'Prepared partial query {count+1}/{len(selected)}', flush=True)
+        emit_progress('Partial scans: query features', count + 1, len(selected))
+    emit_progress('Partial scans: registration', 0, len(tasks))
     completed = Parallel(n_jobs=args.workers, backend='loky', return_as='generator_unordered')(tasks)
     for row, pair_arrays in completed:
         records.append(row)
@@ -236,6 +250,7 @@ def main():
               f'RRE {row["before_rre_deg"]:.3f} -> {row["after_rre_deg"]:.3f}; '
               f'RTE {row["before_rte"]:.5f} -> {row["after_rte"]:.5f}', flush=True)
         np.savez_compressed(output / 'poses_and_clouds.npz', **arrays)
+        emit_progress('Partial scans: registration', len(records), len(tasks))
     frame = pd.DataFrame(records)
     summary = dict(models=args.models, seed=args.seed, library_size=len(library),
                    test_queries=len(files), device='cpu', icp_iterations=args.icp_iterations,

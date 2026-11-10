@@ -1,0 +1,15 @@
+services:
+  corsair:
+    image: corsair-icp:local
+    command: ["serve"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.visual
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - corsair-results:/results
+    init: true
+    stop_grace_period: 15s
+volumes:
+  corsair-results:

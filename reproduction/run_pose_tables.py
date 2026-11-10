@@ -25,6 +25,7 @@ from utils.read_json import to_T
 from utils.symmetry import sym_pose
 from utils.pose_metrics import pose_errors
 from utils.pose_refinement import refine_pose_icp, guard_pose_update
+from reproduction.reporting import emit_progress
 
 
 def symmetry_matrices(order):
@@ -90,6 +91,9 @@ def evaluate_case(case, iterations):
 
 def write_tables(records, output):
     frame = pd.DataFrame(records)
+    acceptance = ('ICP updates follow the geometric RMSE and optional overlap rules recorded in source protocol metadata; no GT acceptance gate. '
+                  if 'require_overlap' in frame and frame.require_overlap.any() else
+                  'ICP updates are accepted only when full-source nearest-neighbor RMSE decreases; no overlap or GT acceptance gate. ')
     frame.to_csv(output / 'per_case.csv', index=False)
     rendered = []
     for number in [1, 3]:
@@ -98,9 +102,9 @@ def write_tables(records, output):
             row = dict(Category=category.title(), Method=method, N=len(group))
             if number == 3:
                 row['With Sym'] = 'No' if method == 'RANSAC' else 'Yes'
-            for threshold in ([5, 15] if number == 1 else [5, 15, 45]):
+            for threshold in [5, 15, 45]:
                 row[f'RRE≤{threshold}°'] = round(float(100 * (group.rre_deg <= threshold).mean()), 2)
-            for threshold in ([.02, .05] if number == 1 else [.02, .05, .1]):
+            for threshold in [.02, .05, .1]:
                 row[f'RTE≤{threshold:.2f}'] = round(float(100 * (group.rte <= threshold).mean()), 2)
             row['Both ≤5°/0.02'] = round(float(100 * ((group.rre_deg <= 5) & (group.rte <= .02)).mean()), 2)
             rows.append(row)
@@ -116,8 +120,7 @@ def write_tables(records, output):
         '<style>body{font:16px system-ui;margin:40px}table{border-collapse:collapse}td,th{padding:10px;border:1px solid #ccc}</style>'
         '<h1>Pose registration evaluation</h1><p>All entries are percentages. '
         'Correct CAD pairing supplied. RTE uses unit-radius-normalized coordinates. '
-        'ICP has at most 10 iterations; updates use geometric distance and overlap, without a GT acceptance gate. '
-        'Joint success requires both thresholds on the same case.</p>' + ''.join(rendered))
+        + acceptance + 'Joint success requires both thresholds on the same case.</p>' + ''.join(rendered))
 
 
 def main():
@@ -130,12 +133,17 @@ def main():
     parser.add_argument('--output', type=Path, default=ROOT / 'results/pose-tables')
     parser.add_argument('--icp-iterations', type=int, default=10)
     args = parser.parse_args()
+    if args.models < 1 or args.icp_iterations < 1 or args.workers < 1:
+        parser.error('models, icp-iterations, and workers must be positive')
     started = time.monotonic()
+    np.random.seed(0)
+    torch.manual_seed(0)
     torch.set_num_threads(1)
     output = args.output / datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
     output.mkdir(parents=True)
     cases, manifest = [], dict(models_per_category=args.models, workers=args.workers,
         icp_iterations=args.icp_iterations, pairing='ground truth CAD, both protocols',
+        icp_acceptance='rmse_only',
         table1_seed=0, table3_subset_seed=42, ransac_n=10, k_nn=5, voxel_size=.03,
         table1_max_corr=.4, table3_max_corr=.2, checkpoints={}, selections={},
         preprocessing='Unit-radius CAD normalization; Scan2CAD additionally uses GT CAD pose/scale, GT segmentation and upstream fixed test transforms.')
@@ -171,6 +179,8 @@ def main():
         if args.models < len(files):
             files = sorted(np.random.RandomState(0).choice(files, args.models, replace=False))
         rng = np.random.RandomState(0)
+        if files:
+            emit_progress(f'Complete {category}: feature extraction', 0, len(files))
         for index, path in enumerate(files):
             source = np.load(path)
             source = source - source.mean(0)
@@ -183,6 +193,7 @@ def main():
             truths = np.stack([truth @ sym for sym in symmetry_matrices(symmetry)])
             prepare(1, index, path.name, path.stem, source, target, truths, symmetry, index)
             print(f'Prepared Table 1 {category} {index+1}/{len(files)}', flush=True)
+            emit_progress(f'Complete {category}: feature extraction', index + 1, len(files))
 
         manifest['selections'][category] = dict(shapenet_files=[p.name for p in files])
         if 3 not in args.tables:
@@ -216,6 +227,7 @@ def main():
     (output / 'protocol.json').write_text(json.dumps(manifest, indent=2))
     print(f'Registering {len(cases)} fresh pairs with {args.workers} CPU workers. Output: {output}', flush=True)
     records = []
+    emit_progress('Complete pairs: registration', 0, len(cases))
     completed = Parallel(n_jobs=args.workers, backend='loky', return_as='generator_unordered')(
         delayed(evaluate_case)(case, args.icp_iterations) for case in cases)
     for count, (rows, arrays, guard) in enumerate(completed, 1):
@@ -226,6 +238,7 @@ def main():
         (folder / f'{row["case_index"]:04d}.json').write_text(json.dumps(dict(rows=rows, guard=guard), indent=2))
         records.extend(rows)
         write_tables(records, output)
+        emit_progress('Complete pairs: registration', count, len(cases))
         print(f'Completed {count}/{len(cases)}: Table {row["table"]} {row["category"]} {row["query_id"]}'
               f' RRE {rows[1]["rre_deg"]:.3f} -> {rows[2]["rre_deg"]:.3f},'
               f' RTE {rows[1]["rte"]:.5f} -> {rows[2]["rte"]:.5f}', flush=True)

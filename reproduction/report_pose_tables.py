@@ -66,6 +66,7 @@ def collect(runs, output, expected=100):
             raise ValueError(f'Run has not finished: {run}')
         protocols.append(dict(source=os.path.relpath(run, output), protocol=protocol))
         frame = pd.read_csv(run / 'per_case.csv')
+        frame['require_overlap'] = protocol.get('icp_acceptance', 'rmse_overlap') != 'rmse_only'
         frame['archive'] = [str(run / f'table{row.table}' / row.category / f'{row.case_index:04d}.npz')
                             for row in frame.itertuples()]
         frames.append(frame)
@@ -80,7 +81,8 @@ def collect(runs, output, expected=100):
     verified = 0
     for (_, _, _), group in frame.groupby(['table', 'category', 'case_index']):
         with np.load(group.iloc[0].archive) as arrays:
-            selected, details = guard_pose_update(arrays['source'], arrays['target'], arrays['corsair'], arrays['proposal'])
+            selected, details = guard_pose_update(arrays['source'], arrays['target'], arrays['corsair'], arrays['proposal'],
+                                                  require_overlap=bool(group.iloc[0].require_overlap))
             np.testing.assert_allclose(selected, arrays['refined'], rtol=0, atol=0, equal_nan=True)
             for row in group.itertuples():
                 key = {'RANSAC': 'ransac', 'CORSAIR': 'corsair', 'CORSAIR + ICP': 'refined'}[row.method]

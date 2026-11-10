@@ -141,7 +141,7 @@ def main():
                "runtime": {name: version(name) for name in ["numpy", "torch", "open3d", "MinkowskiEngine"]},
                "coarse_prediction_archive": str(prediction_archive), "coarse_prediction_sha256": coarse_hash,
                "refinement": args.icp, "icp_iteration_cap": args.icp_iterations,
-               "icp_guard": "Keep initial pose unless full-source nearest-neighbor RMSE decreases and overlap within 0.08 does not decrease; no GT errors used",
+               "icp_guard": "Keep initial pose unless full-source nearest-neighbor RMSE decreases; no overlap condition or GT errors used",
                "convergence": "May stop earlier at Open3D default convergence tolerances",
                "thresholds": {"rre_deg": 5, "rte_normalized": .02},
                "metric": "Float64 symmetry-aware RRE using atan2; direct translation difference",

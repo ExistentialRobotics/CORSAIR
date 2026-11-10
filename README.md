@@ -20,6 +20,113 @@ paper [CORSAIR: Convolutional Object Retrieval and Symmetry-AIded Registration](
 
 # Docker Environment
 
+## Table 1 evaluation (default)
+
+Pull and run the public CPU image (Linux amd64):
+
+```shell
+docker pull maniothelej/corsair-icp:repro-v1
+docker run --rm --init -v corsair-results:/results maniothelej/corsair-icp:repro-v1 --workers 12
+```
+
+A plain Docker run evaluates Table 1 only: 100 complete chairs and 100 complete
+tables, then exits. It shows tqdm progress and verifies the saved reference.
+The final combined CORSAIR + ICP metric is 95.00% for the reference results.
+Detailed category/method metrics are saved in `table1.csv` under
+`/results/table1-TIMESTAMP`. Add `--verbose` for detailed console output.
+
+## Browser visualization container
+
+To start the optional browser, add `serve`:
+
+```shell
+docker run -d --name corsair-icp --init -p 127.0.0.1:8080:8080 \
+  -v corsair-results:/results maniothelej/corsair-icp:repro-v1 serve
+```
+
+Docker downloads the image automatically. Open <http://localhost:8080>.
+The image is hosted at <https://hub.docker.com/r/maniothelej/corsair-icp>.
+
+To reproduce and verify the combined CORSAIR + ICP result on 100 complete chairs
+and 100 complete tables:
+
+```shell
+docker run --rm --entrypoint cat maniothelej/corsair-icp:repro-v1 \
+  /workspace/docker/visual/reproduce.bash > reproduce-corsair.bash
+bash reproduce-corsair.bash --workers 12
+```
+
+This uses bundled data, runs fresh inference, and verifies the complete chair/table
+results against the saved reference. Partial scans are skipped. The final result
+is the mean of chair and table joint success: **CORSAIR + ICP: 95.00%** for the
+saved reference (97% chairs, 93% tables). The one-model UI default is a smoke test.
+
+The launcher shows tqdm progress with per-stage ETA and one combined final metric. Add `--verbose` for the detailed progress,
+tables, and verification JSON. Full evaluation logs and per-case CSVs are still
+saved in the output directory. Rebuild the image to use the updated reporting.
+
+Build and run the standalone CPU app with bundled chair/table data:
+
+```shell
+docker build -f docker/Dockerfile.pose -t corsair-chair-pose:local .
+docker build -f docker/Dockerfile.visual -t corsair-icp:local .
+docker run -d --name corsair-icp --init -p 127.0.0.1:8080:8080 \
+  -v corsair-results:/results corsair-icp:local serve
+```
+
+Open <http://localhost:8080> to launch fresh evaluations, rotate source/target
+point clouds through RANSAC → CORSAIR → ICP, read logs, and download reports.
+The default smoke run evaluates one chair and one table. Saved runs persist
+in the Docker volume. See [the visualization guide](docker/visual/README.md)
+for the full partial-scan evaluation, Compose, and image sharing.
+
+## Complete three-table evaluation
+
+```shell
+bash reproduction/run_complete.bash
+```
+
+This performs fresh inference and registration for 100 complete ShapeNet chairs,
+100 complete ShapeNet tables, and 100 held-out partial Scan2CAD chairs. The same
+partial queries are evaluated with both the known CAD and the top-1 retrieved
+CAD. Each of the three output tables orders its methods as **RANSAC, CORSAIR,
+CORSAIR + ICP**. ICP uses up to 10 point-to-point iterations and accepts an
+update only when full-source nearest-neighbor RMSE decreases by more than
+1e-12. There is no overlap condition or ground-truth acceptance gate.
+
+The timestamped `results/complete/` directory contains `table1.csv` (complete
+pairs), `table2.csv` (partial, known CAD), `table3.csv` (partial, retrieved CAD),
+`tables.html`, `tables.md`, and per-case CSVs. The separate `gt-diagnostic.csv`
+and `gt-diagnostic-per_case.csv` report RRE-only and RTE-only oracle choices
+without changing the RMSE-based output. Raw poses, ICP proposals, clouds,
+checkpoint hashes, exact query selections, and protocol details are retained in
+the `shape/` and `partial/` subdirectories. `audit.json` verifies the saved
+transforms, selection decisions, and reported pose errors. `manifest.json`,
+`source.tar.gz`, image metadata, and `run.log` record the code, Python package
+versions, dataset images, arguments, and execution status. A failed run is
+marked as failed and does not publish complete tables.
+
+Docker is the only host dependency. Dataset images are downloaded automatically
+if absent. Use `--models 1 --workers 2` for a smoke run or `--workers 8` to
+limit CPU concurrency. The default complete run can take over an hour on CPU.
+ShapeNet uses the released pose checkpoints; partial retrieval and registration
+use `scannet_ret_chair`. Upstream Scan2CAD GT segmentation and pose/scale
+normalization are retained. Translation errors use unit-radius-normalized
+coordinates. The protocol evaluates these fixed subsets, not every held-out
+object in the source datasets.
+
+To regenerate the ground-truth selection diagnostic after a completed run:
+
+```shell
+docker run --rm --user "$(id -u):$(id -g)" \
+  --mount "type=bind,src=$PWD,dst=/workspace" \
+  --entrypoint python corsair-chair-pose:local \
+  reproduction/diagnose_pose_selection.py --complete-run results/complete/RUN_ID
+```
+
+This diagnostic compares RRE-only and RTE-only oracle choices; it never changes
+poses or the RMSE-based selection rule.
+
 ## Table 1 pose evaluation
 
 Docker is the only host dependency. From this checkout, run:
@@ -38,8 +145,8 @@ Every run performs fresh inference and registration, without prediction caches.
 Rows compare RANSAC, symmetry-aware CORSAIR, and CORSAIR plus up to 10 ICP
 iterations. RANSAC uses 10 correspondence pairs, k=5 feature matches, voxel
 size 0.03, and correspondence-distance threshold 0.4. ICP keeps the initial
-pose unless nearest-neighbor RMSE decreases and overlap within 0.08 does not
-decrease. This geometry-only guard does not guarantee lower ground-truth pose
+pose unless full-source nearest-neighbor RMSE decreases. There is no overlap
+condition. This geometry-only guard does not guarantee lower ground-truth pose
 errors. Translation errors use unit-radius-normalized coordinates.
 
 A fresh directory in `results/pose-tables/` contains `table1.csv`, `tables.html`,

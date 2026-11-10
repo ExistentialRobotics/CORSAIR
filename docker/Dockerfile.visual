@@ -1,0 +1,19 @@
+# Build the pinned CPU runtime first: docker build -f docker/Dockerfile.pose -t corsair-chair-pose:local .
+ARG RUNTIME_IMAGE=corsair-chair-pose:local
+FROM ${RUNTIME_IMAGE}
+WORKDIR /workspace
+COPY reproduction ./reproduction
+COPY utils ./utils
+COPY model ./model
+COPY datasets ./datasets
+COPY configs ./configs
+COPY tests ./tests
+COPY ckpts/scannet_pose_chair_best ckpts/scannet_pose_table_best ./ckpts/
+COPY docker/data ./docker/data
+COPY docker/Dockerfile.pose ./docker/Dockerfile.pose
+COPY requirements-pose.txt README.md LICENSE .dockerignore ./
+COPY docker/visual ./docker/visual
+RUN mkdir -p /results && chmod 1777 /results
+ENV CORSAIR_DEDUP_CORRESPONDENCES=1
+EXPOSE 8080
+ENTRYPOINT ["python", "-u", "docker/visual/entrypoint.py"]

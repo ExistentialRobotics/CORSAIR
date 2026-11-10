@@ -4,12 +4,14 @@ import open3d as o3d
 from scipy.spatial import cKDTree
 
 
-def guard_pose_update(source_xyz, target_xyz, initial_transform, proposed_transform, *, max_distance=.08):
-    """Accept lower full-source nearest-neighbor RMSE with no loss of overlap.
+def guard_pose_update(source_xyz, target_xyz, initial_transform, proposed_transform, *, max_distance=.08,
+                      require_overlap=False):
+    """Accept lower full-source nearest-neighbor RMSE.
 
     The source must be the observed cloud when one cloud is partial. Overlap is
     its fraction of points within max_distance of the target. No pose labels
-    or evaluation errors enter this decision.
+    or evaluation errors enter this decision. Set require_overlap=True to
+    additionally require no loss of overlap.
     """
     source = np.asarray(source_xyz, dtype=np.float64)
     tree = cKDTree(np.asarray(target_xyz, dtype=np.float64))
@@ -24,7 +26,8 @@ def guard_pose_update(source_xyz, target_xyz, initial_transform, proposed_transf
 
     before_rmse, before_overlap = quality(initial_transform)
     after_rmse, after_overlap = quality(proposed_transform)
-    accepted = bool(after_rmse < before_rmse - 1e-12 and after_overlap >= before_overlap - 1e-12)
+    accepted = bool(after_rmse < before_rmse - 1e-12 and
+                    (not require_overlap or after_overlap >= before_overlap - 1e-12))
     details = dict(accepted=accepted, before_rmse=before_rmse, proposed_rmse=after_rmse,
                    before_overlap=before_overlap, proposed_overlap=after_overlap,
                    overlap_distance=max_distance)
@@ -33,21 +36,21 @@ def guard_pose_update(source_xyz, target_xyz, initial_transform, proposed_transf
 
 
 def refine_pose_icp(source_xyz, target_xyz, initial_transform, multiscale=False, *, partial_target=False,
-                    max_iterations=10, guard=True):
+                    max_iterations=10, guard=True, require_overlap=False):
     """Refine a source-to-target transform without pose labels or correspondences.
 
     Thresholds use the normalized coordinates of the ShapeNet pose evaluator.
     If the target is partial, align its observed points into the complete source
     and invert the result, so unobserved source surfaces do not drive the fit.
     max_iterations is the standard ICP cap, or a per-stage cap for multiscale.
-    By default, retain the initial transform unless scan-to-target RMSE improves
-    and the fraction of observed points within 0.08 does not decrease.
+    By default, retain the initial transform unless scan-to-target RMSE improves.
+    Set require_overlap=True to additionally require no loss of overlap.
     """
     if max_iterations < 1:
         raise ValueError("max_iterations must be positive")
     if partial_target:
         reverse = refine_pose_icp(target_xyz, source_xyz, np.linalg.inv(np.asarray(initial_transform)), multiscale,
-                                  max_iterations=max_iterations, guard=guard)
+                                  max_iterations=max_iterations, guard=guard, require_overlap=require_overlap)
         return np.linalg.inv(reverse)
     source = o3d.geometry.PointCloud()
     source.points = o3d.utility.Vector3dVector(np.asarray(source_xyz, dtype=np.float64))
@@ -66,5 +69,6 @@ def refine_pose_icp(source_xyz, target_xyz, initial_transform, multiscale=False,
         )
         transform = result.transformation.copy()
     if guard:
-        transform, _ = guard_pose_update(source_xyz, target_xyz, initial_transform, transform)
+        transform, _ = guard_pose_update(source_xyz, target_xyz, initial_transform, transform,
+                                         require_overlap=require_overlap)
     return transform

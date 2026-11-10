@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CORSAIR + ICP</title>
+<style>
+:root{color-scheme:dark;font:15px system-ui;background:#10151e;color:#e5eaf2}body{max-width:1450px;margin:32px auto;padding:0 24px}h1{font-size:32px;margin-bottom:8px}p{color:#aab6c9;line-height:1.6}form,.toolbar{display:flex;gap:16px;align-items:end;flex-wrap:wrap;background:#192231;padding:20px;border-radius:12px;margin:24px 0}label{display:grid;gap:8px;font-size:13px;color:#b5c2d7}input,select,button{font:inherit;padding:10px;border-radius:6px;border:1px solid #3b4b64;background:#111a28;color:#e5eaf2}input{width:80px}button{background:#16696b;cursor:pointer}button:disabled{opacity:.5;cursor:wait}#message{color:#f2bc79;min-height:1.5em}.views{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}article{background:#192231;border-radius:10px;overflow:hidden}h3{font-size:14px;margin:15px}canvas{display:block;width:100%;height:320px;touch-action:none;cursor:grab}pre{max-height:300px;overflow:auto;white-space:pre-wrap;background:#080e18;padding:18px;font-size:12px}a{color:#6cd8d2}#metrics{padding:16px 0;color:#c3cee0}#reports{display:flex;gap:16px;margin-bottom:20px}small{color:#aab6c9}@media(max-width:1000px){.views{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:550px){.views{grid-template-columns:1fr}}
+</style>
+<h1>CORSAIR + ICP</h1>
+<p>Compare the input, RANSAC, CORSAIR, and ICP refinement in 3D. Run fresh CPU inference and keep every report and pose archive.</p>
+<form id="launch">
+<label>Evaluation<select id="mode"><option value="shape">Bundled chairs + tables</option><option value="complete">Full three-table evaluation (datasets required)</option></select></label>
+<label>Models per category<input id="models" type="number" min="1" max="100" value="1" required></label>
+<label>CPU workers<input id="workers" type="number" min="1" max="32" value="2" required></label>
+<label>ICP iteration cap<input id="iterations" type="number" min="1" max="100" value="10" required></label>
+<button id="start">Run evaluation</button>
+</form>
+<small>The bundled demo uses complete, noiseless ShapeNet pairs with the correct CAD supplied. Full evaluation adds partial Scan2CAD chairs with known and retrieved CAD. Ground truth is used for scoring; ICP accepts updates using geometric RMSE. Default smoke run: one chair and one table. Larger runs can take over an hour on CPU.</small>
+<div id="message" role="status"></div>
+<div class="toolbar"><label>Saved run<select id="runs"><option>No runs yet</option></select></label><label>Case<select id="cases"><option>Run an evaluation to view clouds</option></select></label><button id="reset" type="button">Reset view</button><span id="state"></span></div>
+<div id="reports"></div>
+<small>Drag any panel to rotate all views. Scroll to zoom. Orange = transformed source · teal = target. Views share one camera.</small>
+<div id="metrics"></div>
+<div class="views" id="views"></div>
+<details open><summary>Run log</summary><pre id="log">Waiting for a run.</pre></details>
+<script>
+const $=id=>document.getElementById(id);
+let selected='', loaded='', cloud=null, yaw=.7, pitch=-.3, zoom=1;
+const stages=['Input','RANSAC','CORSAIR','CORSAIR + ICP'];
+for(const stage of stages){const article=document.createElement('article'),title=document.createElement('h3'),canvas=document.createElement('canvas');title.textContent=stage;article.append(title,canvas);$('views').append(article);let drag=null;canvas.onpointerdown=e=>{drag=[e.clientX,e.clientY];canvas.setPointerCapture(e.pointerId)};canvas.onpointerup=()=>drag=null;canvas.onpointercancel=()=>drag=null;canvas.onpointermove=e=>{if(!drag)return;yaw+=(e.clientX-drag[0])*.01;pitch+=(e.clientY-drag[1])*.01;drag=[e.clientX,e.clientY];draw()};canvas.onwheel=e=>{e.preventDefault();zoom=Math.max(.2,Math.min(6,zoom*Math.exp(-e.deltaY*.001)));draw()};}
+async function api(path,options){const response=await fetch(path,options);const body=await response.json();if(!response.ok)throw Error(body.error||response.statusText);return body}
+function draw(){
+ const canvases=$('views').querySelectorAll('canvas');
+ let center=[0,0,0], radius=1;
+ if(cloud){for(const point of cloud.target)for(let i=0;i<3;i++)center[i]+=point[i]/cloud.target.length;radius=Math.max(.1,...cloud.target.map(p=>Math.hypot(...p.map((v,i)=>v-center[i]))));}
+ canvases.forEach((canvas,index)=>{const ratio=devicePixelRatio||1,w=canvas.clientWidth,h=canvas.clientHeight;canvas.width=w*ratio;canvas.height=h*ratio;const ctx=canvas.getContext('2d');ctx.scale(ratio,ratio);ctx.clearRect(0,0,w,h);if(!cloud)return;const points=[];for(const [group,color] of [[cloud.target,'#53c9c3'],[cloud.stages[stages[index]],'#f3aa72']])for(const point of group){const [x,y,z]=point.map((v,i)=>(v-center[i])/radius),a=x*Math.cos(yaw)+z*Math.sin(yaw),b=-x*Math.sin(yaw)+z*Math.cos(yaw),c=y*Math.cos(pitch)-b*Math.sin(pitch),d=y*Math.sin(pitch)+b*Math.cos(pitch);points.push([a,c,d,color]);}points.sort((a,b)=>a[2]-b[2]);ctx.globalAlpha=.7;for(const [x,y,z,color]of points){ctx.fillStyle=color;ctx.fillRect(w/2+x*Math.min(w,h)*.32*zoom,h/2-y*Math.min(w,h)*.32*zoom,1.7,1.7);}});
+}
+function option(value,label){const opt=document.createElement('option');opt.value=value;opt.textContent=label;return opt}
+function clearCase(){cloud=null;loaded='';$('metrics').textContent='';$('cases').replaceChildren(option('','No completed cases yet'));draw()}
+async function loadCase(){try{const run=selected,index=$('cases').value;if(index==='')return;const data=await api(`/api/runs/${run}/cloud/${index}`);if(run!==selected||index!==$('cases').value)return;cloud=data;const m=data.metrics;$('metrics').textContent=`${m.label} · Final RRE ${Number(m.rre_deg).toFixed(3)}° · RTE ${Number(m.rte).toFixed(5)} · ICP update accepted: ${m.guard_accepted}`;draw()}catch(e){$('message').textContent=e.message;cloud=null;draw()}}
+async function refresh(){
+ try{
+ const runs=await api('/api/runs');const previous=selected;
+ if(!selected&&runs.length)selected=runs[0].id;
+ $('runs').replaceChildren(...(runs.length?runs.map(r=>option(r.id,`${r.id} · ${r.mode} · N=${r.models}/category · ${r.status}`)):[option('','No runs yet')]));$('runs').value=selected;
+ $('start').disabled=runs.some(r=>r.status==='running');
+ const run=runs.find(r=>r.id===selected);if(!run)return;
+ $('state').textContent=`${run.status} · ${run.models} models/category${run.models<100?' · subset test; reference tables use 100':''}${run.reference_match===true?' · reference verified':run.reference_match===false?' · reference mismatch; see reproduction-check.json':''}`;
+ const log=await api(`/api/runs/${selected}/log`);$('log').textContent=log.log||'Starting inference…';
+ if(run.status==='complete'&&loaded!==selected){
+ const id=selected,rows=await api(`/api/runs/${id}/cases`);if(id!==selected)return;
+ $('cases').replaceChildren(...rows.map((r,i)=>option(String(i),r.label)));loaded=id;await loadCase();
+ $('reports').replaceChildren();
+ const reportNames=run.mode==='complete'?['tables.html','audit.json','manifest.json','table1-per_case.csv','table2-per_case.csv','table3-per_case.csv']:[];
+ if(run.reference_match!==undefined)reportNames.push('reproduction-check.json');
+ // Shape evaluation stores its report under a timestamped child directory, exposed by the API records.
+ if(run.mode==='shape'&&rows.length){const folder=rows[0].archive.split('/').slice(0,2).join('/');reportNames.push(`${folder}/tables.html`,`${folder}/table1.csv`,`${folder}/protocol.json`,`${folder}/per_case.csv`);}
+ for(const name of reportNames){const link=document.createElement('a');link.href=`/results/${selected}/${name}`;link.textContent=name.split('/').pop();link.target='_blank';link.rel='noopener';$('reports').append(link);}
+ }
+ }catch(e){$('message').textContent=e.message}
+}
+$('launch').onsubmit=async e=>{e.preventDefault();$('message').textContent='';$('start').disabled=true;try{const payload={mode:$('mode').value};for(const key of ['models','workers','iterations'])payload[key]=Number($(key).value);const run=await api('/api/runs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});selected=run.id;clearCase();$('reports').replaceChildren();await refresh()}catch(error){$('message').textContent=error.message;$('start').disabled=false}};
+$('runs').onchange=()=>{selected=$('runs').value;clearCase();$('reports').replaceChildren();refresh()};$('cases').onchange=loadCase;$('reset').onclick=()=>{yaw=.7;pitch=-.3;zoom=1;draw()};window.onresize=draw;refresh();setInterval(refresh,2500);draw();
+</script>
+</html>
